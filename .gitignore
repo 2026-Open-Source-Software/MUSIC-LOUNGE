@@ -1,0 +1,91 @@
+# =================
+# 1. OS & Environment Files (운영체제 및 환경 파일)
+# =================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# =================
+# 2. IDE & Editor Configs (에디터 및 IDE 설정)
+# =================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# =================
+# 3. Environment Variables & Secrets (보안 - 환경 변수)
+# =================
+.env
+.env.local
+.env.*.local
+*.pem
+secrets.json
+
+# =================
+# 4. Node.js & Frontend (클라이언트 앱 / 웹)
+# =================
+node_modules/
+jspm_packages/
+dist/
+build/
+.next/
+.nuxt/
+out/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# =================
+# 5. Python & Backend (서버 / AI 모듈)
+# =================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv/
+.env/
+*.log
+celerybeat-schedule
+celerybeat.pid
+*.sqlite3
+
+# =================
+# 6. Build & Logs & Temporary Files (기타 빌드 및 임시 파일)
+# =================
+*.log
+logs/
+tmp/
+temp/
+coverage/
+.nyc_output/
