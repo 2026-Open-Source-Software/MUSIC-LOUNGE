@@ -40,7 +40,8 @@ def search():
             }
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(query, download=False)
+            search_query = query if query.startswith("ytsearch") else f"ytsearch10:{query}"
+            result = ydl.extract_info(search_query, download=False)
             entries = result.get('entries', [])
             
             tracks = []
