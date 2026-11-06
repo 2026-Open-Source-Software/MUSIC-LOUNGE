@@ -9,3 +9,16 @@ services:
     volumes:
       - .:/app
     restart: always
+
+  ytdlp-api:
+    build:
+      context: ./ytdlp_server
+      dockerfile: Dockerfile
+    container_name: ytdlp-api-server
+    ports:
+      - "8001:5000"
+    environment:
+      - FLASK_ENV=development
+    volumes:
+      - ./ytdlp_server:/app
+    restart: always
