@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MUSIC LOUNGE | 취향이 만나는 공간</title>
+
+    <!-- CSS 연결 -->
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <!-- 상단 네비게이션 -->
+    <header class="topbar">
+
+        <a class="logo" href="#">
+            ♫ MUSIC <span>LOUNGE</span>
+        </a>
+
+        <span class="status">
+            ● LIVE COMMUNITY
+        </span>
+
+    </header>
+
+
+    <!-- 메인 컨텐츠 -->
+    <main class="container">
+
+        <!-- 메인 소개 -->
+        <section class="hero">
+
+            <div class="eyebrow">
+                YOUR MUSIC. YOUR PEOPLE.
+            </div>
+
+            <h1>
+                취향이 만나는<br>
+                <em>우리만의 음악 라운지</em>
+            </h1>
+
+            <p>
+                좋아하는 장르를 선택하고,
+                플레이리스트를 나누고,
+                함께 이야기해요.
+            </p>
+
+        </section>
+
+
+        <!-- 장르별 라운지 선택 -->
+        <section id="selection">
+
+            <div class="section-heading">
+
+                <h2>EXPLORE LOUNGES</h2>
+
+                <span>
+                    원하는 장르를 선택하세요
+                </span>
+
+            </div>
+
+            <!-- JavaScript로 라운지 카드 생성 -->
+            <div
+                id="room-cards"
+                class="room-grid"
+            ></div>
+
+        </section>
+
+
+        <!-- 음악 라운지 내부 -->
+        <section id="lounge" class="hidden">
+
+            <!-- 라운지 상단 -->
+            <div class="lounge-header">
+
+                <div>
+
+                    <div class="eyebrow">
+                        NOW ENTERING
+                    </div>
+
+                    <h2 id="room-title"></h2>
+
+                    <p>
+                        음악으로 연결되는 공간
+                    </p>
+
+                </div>
+
+                <button
+                    class="secondary"
+                    id="back-btn"
+                >
+                    ← 다른 라운지
+                </button>
+
+            </div>
+
+
+            <!-- 라운지 메인 레이아웃 -->
+            <div class="lounge-grid">
+
+                <!-- 왼쪽: 플레이리스트 랭킹 -->
+                <aside class="panel ranking">
+
+                    <div class="panel-title">
+                        🏆 TOP PLAYLISTS
+                    </div>
+
+                    <p class="muted">
+                        좋아요가 많은 플레이리스트
+                    </p>
+
+                    <!-- 랭킹 목록 -->
+                    <div id="ranking-list"></div>
+
+                </aside>
+
+
+                <!-- 중앙: 플레이리스트 -->
+                <section class="panel playlist-area">
+
+                    <div class="panel-title">
+                        ♫ PLAYLIST STATION
+                    </div>
+
+                    <p class="muted">
+                        닉네임을 클릭해
+                        플레이리스트를 확인하세요
+                    </p>
+
+                    <!-- 사용자 플레이리스트 목록 -->
+                    <div id="playlist-list"></div>
+
+
+                    <!-- 선택한 플레이리스트 표시 -->
+                    <div
+                        id="player"
+                        class="player"
+                    >
+                        <span>
+                            ♫ 플레이리스트를 선택해주세요
+                        </span>
+                    </div>
+
+
+                    <!-- 플레이리스트 생성 버튼 -->
+                    <button
+                        class="primary full"
+                        id="create-btn"
+                    >
+                        + 내 플레이리스트 공유하기
+                    </button>
+
+                </section>
+
+
+                <!-- 오른쪽: 실시간 채팅 -->
+                <aside class="panel chat">
+
+                    <div class="panel-title">
+
+                        💬 LIVE CHAT
+
+                        <span class="online">
+                            ● ONLINE
+                        </span>
+
+                    </div>
+
+
+                    <!-- 채팅 메시지 목록 -->
+                    <div
+                        id="chat-messages"
+                        class="chat-messages"
+                    ></div>
+
+
+                    <!-- 채팅 입력창 -->
+                    <form id="chat-form">
+
+                        <input
+                            type="text"
+                            id="chat-input"
+                            maxlength="300"
+                            placeholder="메시지를 입력하세요..."
+                            required
+                        >
+
+                        <button
+                            type="submit"
+                            class="send"
+                        >
+                            ➤
+                        </button>
+
+                    </form>
+
+                </aside>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- 플레이리스트 생성 팝업 -->
+    <dialog id="create-dialog">
+
+        <form id="create-form">
+
+            <h2>
+                플레이리스트 공유
+            </h2>
+
+            <p class="muted">
+                현재 라운지에 나만의 음악을 공유해요.
+            </p>
+
+
+            <!-- 플레이리스트 제목 -->
+            <label>
+
+                플레이리스트 이름
+
+                <input
+                    type="text"
+                    id="playlist-title"
+                    maxlength="60"
+                    placeholder="예: 비 오는 밤"
+                    required
+                >
+
+            </label>
+
+
+            <!-- 노래 목록 -->
+            <label>
+
+                노래 목록 (한 줄에 한 곡)
+
+                <textarea
+                    id="playlist-songs"
+                    rows="5"
+                    placeholder="곡명 — 가수명"
+                    required
+                ></textarea>
+
+            </label>
+
+
+            <!-- 팝업 하단 버튼 -->
+            <div class="dialog-actions">
+
+                <button
+                    type="button"
+                    class="secondary"
+                    id="cancel-btn"
+                >
+                    취소
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary"
+                >
+                    공유하기
+                </button>
+
+            </div>
+
+        </form>
+
+    </dialog>
+
+
+    <!-- 하단 푸터 -->
+    <footer>
+        © MUSIC LOUNGE · Find your vibe, share your sound.
+    </footer>
+
+
+    <!-- JavaScript 연결 -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+
+</body>
+</html>
