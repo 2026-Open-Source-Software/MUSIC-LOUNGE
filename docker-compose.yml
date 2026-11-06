@@ -1,0 +1,11 @@
+services:
+  music-lounge:
+    build: .
+    container_name: music-lounge-app
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+    volumes:
+      - .:/app
+    restart: always
