@@ -89,3 +89,6 @@ tmp/
 temp/
 coverage/
 .nyc_output/
+# Local account data and browser verification artifacts
+instance/
+.local-checks/
