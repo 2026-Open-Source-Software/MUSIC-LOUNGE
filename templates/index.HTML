@@ -1,302 +1,71 @@
-
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MUSIC LOUNGE | 취향이 만나는 공간</title>
-
-    <!-- CSS 연결 -->
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script type="module" src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
-
-<body>
-
-    <!-- 상단 네비게이션 -->
-    <header class="topbar">
-
-        <a class="logo" href="#">
-            ♫ MUSIC <span>LOUNGE</span>
-        </a>
-
-        <span class="status">
-            ● LIVE COMMUNITY
-        </span>
-
-    </header>
-
-
-    <!-- 메인 컨텐츠 -->
-    <main class="container">
-
-        <!-- 메인 소개 -->
-        <section class="hero">
-
-            <div class="eyebrow">
-                YOUR MUSIC. YOUR PEOPLE.
-            </div>
-
-            <h1>
-                취향이 만나는<br>
-                <em>우리만의 음악 라운지</em>
-            </h1>
-
-            <p>
-                좋아하는 장르를 선택하고,
-                플레이리스트를 나누고,
-                함께 이야기해요.
-            </p>
-
-        </section>
-
-
-        <!-- 장르별 라운지 선택 -->
-        <section id="selection">
-
-            <div class="section-heading">
-
-                <h2>EXPLORE LOUNGES</h2>
-
-                <span>
-                    원하는 장르를 선택하세요
-                </span>
-
-            </div>
-
-            <!-- JavaScript로 라운지 카드 생성 -->
-            <div
-                id="room-cards"
-                class="room-grid"
-            ></div>
-
-        </section>
-
-
-        <!-- 음악 라운지 내부 -->
-        <section id="lounge" class="hidden">
-
-            <!-- 라운지 상단 -->
-            <div class="lounge-header">
-
-                <div>
-
-                    <div class="eyebrow">
-                        NOW ENTERING
-                    </div>
-
-                    <h2 id="room-title"></h2>
-
-                    <p>
-                        음악으로 연결되는 공간
-                    </p>
-
-                </div>
-
-                <button
-                    class="secondary"
-                    id="back-btn"
-                >
-                    ← 다른 라운지
-                </button>
-
-            </div>
-
-
-            <!-- 라운지 메인 레이아웃 -->
-            <div class="lounge-grid">
-
-                <!-- 왼쪽: 플레이리스트 랭킹 -->
-                <aside class="panel ranking">
-
-                    <div class="panel-title">
-                        🏆 TOP PLAYLISTS
-                    </div>
-
-                    <p class="muted">
-                        좋아요가 많은 플레이리스트
-                    </p>
-
-                    <!-- 랭킹 목록 -->
-                    <div id="ranking-list"></div>
-
+<body data-authenticated="{{ 'true' if session.get('user_id') else 'false' }}">
+<header class="topbar">
+    <a class="logo" href="{{ url_for('index') }}">♫ MUSIC <span>LOUNGE</span></a>
+    <a class="secondary" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">{% if session.get('user_id') %}마이페이지 · {{ session['nickname'] }}{% else %}로그인{% endif %}</a>
+    <span class="status">● MUSIC CONNECTS US</span>
+</header>
+<main class="container">
+    <section class="hero">
+        <div class="eyebrow">YOUR MUSIC. YOUR PEOPLE.</div>
+        <h1>취향이 만나는<br><em>우리만의 음악 라운지</em></h1>
+        <p>유튜브 음악을 모으고, 같은 취향의 사람들과 나누세요.</p>
+        <a class="primary hero-action" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">내 플레이리스트 만들기 ↗</a>
+    </section>
+    <p id="page-feedback" class="feedback" role="status" aria-live="polite"></p>
+    <section id="selection">
+        <div class="section-heading"><h2>EXPLORE LOUNGES</h2><span>지금 듣고 싶은 장르를 선택하세요</span></div>
+        <div id="room-cards" class="room-grid"></div>
+    </section>
+    <section id="lounge" class="hidden">
+        <div class="lounge-header">
+            <div><div class="eyebrow">LISTEN TOGETHER</div><h2 id="room-title"></h2><p>음악으로 연결되는 공간</p></div>
+            <button class="secondary" id="back-btn" type="button">← 다른 라운지</button>
+        </div>
+        <div class="lounge-grid">
+            <div class="lounge-sidebar">
+                <aside class="panel ranking" aria-labelledby="ranking-heading"><h3 class="panel-title" id="ranking-heading">TOP PLAYLISTS</h3><div id="ranking-list"></div></aside>
+                <aside class="panel participants" aria-labelledby="participants-heading">
+                    <div class="participants-heading"><h3 id="participants-heading">참여자</h3><span id="participant-count" class="count-badge" aria-live="polite">0명</span></div>
+                    <p class="muted">닉네임을 눌러 공유한 음악을 만나보세요.</p>
+                    <div id="participant-list"></div>
                 </aside>
-
-
-                <!-- 중앙: 플레이리스트 -->
-                <section class="panel playlist-area">
-
-                    <div class="panel-title">
-                        ♫ PLAYLIST STATION
-                    </div>
-
-                    <p class="muted">
-                        닉네임을 클릭해
-                        플레이리스트를 확인하세요
-                    </p>
-
-                    <!-- 사용자 플레이리스트 목록 -->
-                    <div id="playlist-list"></div>
-
-
-                    <!-- 선택한 플레이리스트 표시 -->
-                    <div
-                        id="player"
-                        class="player"
-                    >
-                        <span>
-                            ♫ 플레이리스트를 선택해주세요
-                        </span>
-                    </div>
-
-
-                    <!-- 플레이리스트 생성 버튼 -->
-                    <button
-                        class="primary full"
-                        id="create-btn"
-                    >
-                        + 내 플레이리스트 공유하기
-                    </button>
-
-                </section>
-
-
-                <!-- 오른쪽: 실시간 채팅 -->
-                <aside class="panel chat">
-
-                    <div class="panel-title">
-
-                        💬 LIVE CHAT
-
-                        <span class="online">
-                            ● ONLINE
-                        </span>
-
-                    </div>
-
-
-                    <!-- 채팅 메시지 목록 -->
-                    <div
-                        id="chat-messages"
-                        class="chat-messages"
-                    ></div>
-
-
-                    <!-- 채팅 입력창 -->
-                    <form id="chat-form">
-
-                        <input
-                            type="text"
-                            id="chat-input"
-                            maxlength="300"
-                            placeholder="메시지를 입력하세요..."
-                            required
-                        >
-
-                        <button
-                            type="submit"
-                            class="send"
-                        >
-                            ➤
-                        </button>
-
-                    </form>
-
-                </aside>
-
             </div>
-
-        </section>
-
-    </main>
-
-
-    <!-- 플레이리스트 생성 팝업 -->
-    <dialog id="create-dialog">
-
-        <form id="create-form">
-
-            <h2>
-                플레이리스트 공유
-            </h2>
-
-            <p class="muted">
-                현재 라운지에 나만의 음악을 공유해요.
-            </p>
-
-
-            <!-- 플레이리스트 제목 -->
-            <label>
-
-                플레이리스트 이름
-
-                <input
-                    type="text"
-                    id="playlist-title"
-                    maxlength="60"
-                    placeholder="예: 비 오는 밤"
-                    required
-                >
-
-            </label>
-
-
-            <!-- 노래 목록 -->
-            <label>
-
-                노래 목록 (한 줄에 한 곡)
-
-                <textarea
-                    id="playlist-songs"
-                    rows="5"
-                    placeholder="곡명 — 가수명"
-                    required
-                ></textarea>
-
-            </label>
-
-
-            <!-- 팝업 하단 버튼 -->
-            <div class="dialog-actions">
-
-                <button
-                    type="button"
-                    class="secondary"
-                    id="cancel-btn"
-                >
-                    취소
-                </button>
-
-                <button
-                    type="submit"
-                    class="primary"
-                >
-                    공유하기
-                </button>
-
-            </div>
-
-        </form>
-
-    </dialog>
-
-
-    <!-- 하단 푸터 -->
-    <footer>
-        © MUSIC LOUNGE · Find your vibe, share your sound.
-    </footer>
-
-
-    <!-- JavaScript 연결 -->
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
-
+            <section class="panel playlist-area" aria-labelledby="playlist-heading">
+                <div class="eyebrow">PLAYLIST STATION</div><h2 id="playlist-heading">라운지의 음악</h2>
+                <p class="muted" id="playlist-description">참여자를 선택하거나 라운지의 공유 목록을 둘러보세요.</p>
+                <button class="secondary" id="show-all" type="button">모든 공유 목록 보기</button>
+                <div id="playlist-list"></div>
+                <div id="player" class="player"><p>♫ 플레이리스트를 선택해주세요.</p></div>
+                <div class="share-actions"><button class="primary" id="share-btn" type="button">내 플레이리스트 공유</button><button class="secondary" id="create-btn" type="button">+ 새로 만들기</button></div>
+            </section>
+            <aside class="panel chat" aria-labelledby="chat-heading">
+                <div class="chat-heading"><h2 id="chat-heading">라운지 채팅</h2><span id="connection-status" class="connection-status" role="status">연결 대기</span></div>
+                <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="라운지 메시지"></div>
+                <form id="chat-form"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button></form>
+                <p id="chat-feedback" class="feedback" role="status"></p>
+            </aside>
+        </div>
+    </section>
+</main>
+<dialog id="create-dialog"><form id="create-form">
+    <h2>플레이리스트 만들기</h2><p class="muted">내 계정에 저장하고 현재 라운지에도 공유합니다.</p>
+    <label for="playlist-title">플레이리스트 이름</label><input id="playlist-title" maxlength="60" required placeholder="예: 밤 산책의 리듬">
+    <section class="youtube-import" aria-label="유튜브 곡 정보 가져오기"><label for="create-import-url">유튜브 영상·재생목록에서 곡 정보 가져오기</label><div class="import-controls"><input id="create-import-url" type="url" maxlength="2048" placeholder="https://www.youtube.com/playlist?list=…"><button type="button" class="primary" id="create-import-button">곡 정보 가져오기</button></div><p class="muted">공개 영상·재생목록에서 최대 100곡을 가져옵니다. 저장 후 MP3로 감상하세요.</p><p id="create-import-feedback" class="feedback" role="status" aria-live="polite"></p></section>
+        <label for="playlist-songs">유튜브 링크 (한 줄에 한 곡, 최대 100곡)</label><textarea id="playlist-songs" rows="6" required placeholder="https://www.youtube.com/watch?v=…&#10;곡 이름 | https://youtu.be/…"></textarea>
+    <p class="muted">곡 이름은 링크 앞에 ‘곡 이름 | 링크’ 형식으로 입력할 수 있어요.</p>
+    <p id="create-feedback" class="feedback" role="status"></p>
+    <div class="dialog-actions"><button type="button" class="secondary" id="cancel-btn">취소</button><button type="submit" class="primary" id="create-submit">저장하고 공유</button></div>
+</form></dialog>
+<dialog id="share-dialog"><h2>내 플레이리스트 공유</h2><p class="muted">이 라운지에 공유할 목록을 선택하세요. 공유를 해제해도 내 계정에는 남습니다.</p><p id="share-feedback" class="feedback" role="status"></p><div id="share-list"></div><div class="dialog-actions"><a class="secondary" href="{{ url_for('mypage') }}">마이페이지에서 관리</a><button class="primary" id="share-close" type="button">완료</button></div></dialog>
+<footer>© MUSIC LOUNGE · Find your vibe, share your sound.</footer>
 </body>
 </html>

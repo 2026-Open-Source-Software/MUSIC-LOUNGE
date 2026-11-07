@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마이페이지 | MUSIC LOUNGE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script type="module" src="{{ url_for('static', filename='js/mypage.js') }}" defer></script>
+</head>
+<body>
+<header class="topbar">
+    <a class="logo" href="{{ url_for('index') }}">♫ MUSIC <span>LOUNGE</span></a>
+    <a class="secondary" href="{{ url_for('index') }}">라운지 둘러보기</a>
+    <form method="post" action="{{ url_for('logout') }}"><button class="secondary" type="submit">로그아웃</button></form>
+</header>
+<main class="container mypage">
+    <div class="page-heading"><div class="eyebrow">YOUR PERSONAL SPACE</div><h1>나의 음악 라운지</h1><p class="muted">내 취향과 플레이리스트를 한곳에서 관리하세요.</p></div>
+    <div class="account-grid">
+        <section class="panel account-panel" aria-labelledby="account-title">
+            <div class="avatar" aria-hidden="true">♫</div>
+            <h2 id="account-title">내 계정</h2>
+            <form id="profile-form">
+                <label for="account-id">아이디</label>
+                <input id="account-id" value="{{ session['user_id'] }}" readonly>
+                <label for="profile-nickname">닉네임</label>
+                <input id="profile-nickname" value="{{ session['nickname'] }}" minlength="2" maxlength="20" required autocomplete="nickname">
+                <details><summary>비밀번호 변경</summary>
+                    <label for="current-password">현재 비밀번호</label>
+                    <input type="password" id="current-password" autocomplete="current-password" maxlength="128">
+                    <label for="new-password">새 비밀번호</label>
+                    <input type="password" id="new-password" autocomplete="new-password" maxlength="128">
+                    <label for="confirm-password">새 비밀번호 확인</label>
+                    <input type="password" id="confirm-password" autocomplete="new-password" maxlength="128">
+                </details>
+                <p id="profile-feedback" class="feedback" role="status" aria-live="polite"></p>
+                <button class="primary full" type="submit">계정 정보 저장</button>
+            </form>
+        </section>
+        <section class="my-library" aria-labelledby="library-title">
+            <div class="library-heading"><div><div class="eyebrow">MY COLLECTION</div><h2 id="library-title">내 플레이리스트 <span id="playlist-count">0</span></h2></div><button class="primary" id="new-playlist" type="button">+ 플레이리스트 만들기</button></div>
+            <p id="library-feedback" class="feedback" role="status" aria-live="polite"></p>
+            <div id="my-playlists" class="my-playlists"><p class="muted">플레이리스트를 불러오는 중…</p></div>
+        </section>
+    </div>
+</main>
+<dialog id="edit-dialog">
+    <form id="edit-form">
+        <h2 id="editor-heading">플레이리스트 수정</h2>
+        <p class="muted">내 계정에 저장한 뒤 원하는 라운지에 공유할 수 있어요.</p>
+        <label for="edit-room">기본 장르</label><select id="edit-room" required><option value="ballad">발라드</option><option value="rnb">R&amp;B</option><option value="hiphop">힙합</option><option value="indie">인디</option></select>
+        <label for="edit-title">플레이리스트 이름</label><input id="edit-title" maxlength="60" required>
+        <section class="youtube-import" aria-label="유튜브 곡 정보 가져오기"><label for="edit-import-url">유튜브 영상·재생목록에서 곡 정보 가져오기</label><div class="import-controls"><input id="edit-import-url" type="url" maxlength="2048" placeholder="https://www.youtube.com/playlist?list=…"><button type="button" class="primary" id="edit-import-button">곡 정보 가져오기</button></div><p class="muted">공개 영상·재생목록에서 최대 100곡을 가져옵니다. 저장 후 MP3로 감상하세요.</p><p id="edit-import-feedback" class="feedback" role="status" aria-live="polite"></p></section>
+        <label for="edit-songs">유튜브 링크 (한 줄에 한 곡, 최대 100곡)</label><textarea id="edit-songs" rows="7" required placeholder="https://www.youtube.com/watch?v=…&#10;곡 이름 | https://youtu.be/…"></textarea><p class="muted">‘곡 이름 | 링크’ 형식도 사용할 수 있어요. 기존 곡명만 있는 항목은 링크로 바꿔 재생할 수 있습니다.</p>
+        <p id="edit-feedback" class="feedback" role="status" aria-live="polite"></p>
+        <div class="dialog-actions"><button type="button" id="edit-cancel" class="secondary">취소</button><button type="submit" class="primary" id="editor-submit">변경 저장</button></div>
+    </form>
+</dialog>
+<dialog id="delete-dialog">
+    <h2>플레이리스트를 삭제할까요?</h2><p id="delete-description" class="muted"></p>
+    <p id="delete-feedback" class="feedback" role="status" aria-live="polite"></p>
+    <div class="dialog-actions"><button type="button" id="delete-cancel" class="secondary">취소</button><button type="button" id="delete-confirm" class="danger">삭제</button></div>
+</dialog>
+<footer>© MUSIC LOUNGE · Your music, your space.</footer>
+</body>
+</html>
