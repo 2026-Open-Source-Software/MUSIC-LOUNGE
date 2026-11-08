@@ -1,11 +1,37 @@
+version: '3.8'
+
 services:
-  music-lounge:
-    build: .
-    container_name: music-lounge-app
+  frontend:
+    image: nginx:alpine
+    container_name: music_frontend
+    ports:
+      - "8000:80"
+    volumes:
+      - ./static:/usr/share/nginx/html/static
+      - ./templates:/usr/share/nginx/html/templates
+    depends_on:
+      - backend
+
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: music_backend
     ports:
       - "5000:5000"
+    volumes:
+      - sqlite_data:/app/instance
     environment:
       - FLASK_ENV=development
+    depends_on:
+      - db
+
+  db:
+    image: alpine:latest
+    container_name: music_db
     volumes:
-      - .:/app
-    restart: always
+      - sqlite_data:/data
+    command: ["sh", "-c", "echo 'Database volume container initialized' && tail -f /dev/null"]
+
+volumes:
+  sqlite_data:
