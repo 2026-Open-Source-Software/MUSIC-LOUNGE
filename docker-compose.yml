@@ -1,11 +1,35 @@
 services:
-  music-lounge:
+  web:
     build: .
     container_name: music-lounge-app
     ports:
-      - "5000:5000"
+      - "8000:5000"
     environment:
       - FLASK_ENV=development
+      - YTDLP_SERVER_URL=http://ytdlp-server:5001
+      - MUSIC_LOUNGE_DB=/app/instance/lounge.sqlite3
     volumes:
       - .:/app
+      - db_data:/app/instance
+    depends_on:
+      - ytdlp-server
+      - db
     restart: always
+
+  ytdlp-server:
+    build: ./ytdlp_server
+    container_name: music-lounge-ytdlp
+    ports:
+      - "5001:5001"
+    restart: always
+
+  db:
+    image: alpine:latest
+    container_name: music-lounge-db
+    volumes:
+      - db_data:/data
+    command: tail -f /dev/null
+    restart: always
+
+volumes:
+  db_data:

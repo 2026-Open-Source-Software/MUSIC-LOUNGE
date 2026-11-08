@@ -1,11 +1,9 @@
-﻿"""Public YouTube metadata import; no media is downloaded by this module."""
-import importlib.util
-import json
+"""Public YouTube metadata import via backend yt-dlp API server."""
+import os
 import re
-import subprocess
-import sys
 from threading import BoundedSemaphore
 from urllib.parse import urlsplit, parse_qs
+import requests
 from playlist_service import ValidationError, youtube_track
 
 _slots = BoundedSemaphore(2)
@@ -19,8 +17,7 @@ class MediaError(Exception):
 
 
 def check_module():
-    if importlib.util.find_spec('yt_dlp') is None:
-        raise MediaError('yt-dlp가 없습니다. 서버에서 python -m pip install -r requirements.txt를 실행해주세요.', 503)
+    pass
 
 
 def normalize_url(url):
@@ -71,16 +68,18 @@ def parse_metadata(data):
 
 def extract(url):
     url = normalize_url(url)
-    check_module()
     if not _slots.acquire(blocking=False):
         raise MediaError('다른 곡 정보를 가져오는 중입니다. 잠시 후 다시 시도해주세요.', 429)
     try:
+        ytdlp_url = os.environ.get('YTDLP_SERVER_URL', 'http://ytdlp-server:5001')
         try:
-            result = subprocess.run([sys.executable, '-m', 'yt_dlp', '--ignore-config', '--no-cache-dir', '--flat-playlist', '--dump-single-json', '--skip-download', '--ignore-errors', '--playlist-end', '100', '--socket-timeout', '15', '--retries', '1', '--', url], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=65)
-            data = json.loads(result.stdout)
-        except subprocess.TimeoutExpired:
+            res = requests.get(f"{ytdlp_url}/api/extract", params={'url': url}, timeout=65)
+            if res.status_code != 200:
+                raise MediaError('곡 정보를 가져오지 못했습니다. 공개 링크와 서버의 인터넷 연결을 확인해주세요.')
+            data = res.json()
+        except requests.Timeout:
             raise MediaError('유튜브 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.', 504) from None
-        except (ValueError, OSError):
+        except (ValueError, OSError, requests.RequestException):
             raise MediaError('곡 정보를 가져오지 못했습니다. 공개 링크와 서버의 인터넷 연결을 확인해주세요.') from None
         return {**parse_metadata(data), 'source_url': url}
     finally:
