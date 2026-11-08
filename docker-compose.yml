@@ -1,18 +1,40 @@
 version: '3.8'
 
 services:
-  music-lounge-app:
-    build:
+  # 1. 프론트엔드 / 웹 서버 컨테이너 (정적 자산 및 UI 서빙)
+  frontend:
+    image: nginx:alpine
+    container_name: music_frontend
+    ports:
+      - "8000:80"
+    volumes:
+      - ./static:/usr/share/nginx/html/static
+      - ./templates:/usr/share/nginx/html/templates
+    depends_on:
+      - backend
+
+  # 2. 백엔드 API 서버 컨테이너 (Python Flask 및 비즈니스 로직)
+  backend:
+    build: 
       context: .
       dockerfile: Dockerfile
-    container_name: music-lounge-app
+    container_name: music_backend
     ports:
-      - "8000:5000"
+      - "5000:5000"
     volumes:
-      - .:/app
-      - sqlite_data:/app/data
+      - sqlite_data:/app/instance
     environment:
       - FLASK_ENV=development
+    depends_on:
+      - db
+
+  # 3. 데이터베이스 영역 (SQLite 파일 데이터 영속성 보존 볼륨 관리 레이어)
+  db:
+    image: alpine:latest
+    container_name: music_db
+    volumes:
+      - sqlite_data:/data
+    command: ["sh", "-c", "echo 'Database volume container initialized' && tail -f /dev/null"]
 
 volumes:
   sqlite_data:
