@@ -1,9 +1,0 @@
-{
-  "name": "music-platform",
-  "version": "1.0.0",
-  "main": "app.mjs",
-  "dependencies": {
-    "express": "^4.18.2",
-    "sqlite3": "^5.1.7"
-  }
-}
