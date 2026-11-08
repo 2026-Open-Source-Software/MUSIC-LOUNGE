@@ -1,28 +1,18 @@
+version: '3.8'
+
 services:
-  music-lounge:
-    build: .
+  music-lounge-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: music-lounge-app
     ports:
       - "8000:5000"
-    environment:
-      - FLASK_ENV=development
     volumes:
       - .:/app
-    restart: always
-
-  music-node-app:
-    build:
-      context: .
-      dockerfile: Dockerfile.node
-    container_name: music-node-server
-    ports:
-      - "3001:3000"
-    volumes:
       - sqlite_data:/app/data
     environment:
-      - PORT=3000
-      - DB_PATH=/app/data/music.db
-    restart: always
+      - FLASK_ENV=development
 
 volumes:
   sqlite_data:

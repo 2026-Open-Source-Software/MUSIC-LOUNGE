@@ -1,7 +1,12 @@
-# 🎵 MUSIC-LOUNGE
+# MUSIC-LOUNGE (Python/SQLite Unified Version)
 
-> **음악을 함께 듣고 소통하는 웹 서비스**
+본 프로젝트는 Node.js 백엔드 로직 및 SQLite 데이터베이스를 **Python Flask** 환경으로 완전 통합한 버전입니다.
 
-MUSIC-LOUNGE는 사용자가 좋아하는 음악을 공유하고 실시간으로 음악을 매개로 소통할 수 있는 공간을 제공합니다.
+## 🚀 실행 방법
 
----
+### Docker Compose로 실행하기 (추천)
+
+```bash
+docker compose up --build -d
+```
+- 접속 URL: `http://localhost:8000`
