@@ -21,6 +21,34 @@ def index():
 def health():
     return jsonify({"status": "healthy"})
 
+@app.get("/api/extract")
+def extract_metadata():
+    url = request.args.get("url", "").strip()
+    if not url:
+        return jsonify({"error": "URL을 입력해주세요."}), 400
+    try:
+        ydl_opts = {
+            'ignoreconfig': True,
+            'no_cache_dir': True,
+            'flat_playlist': True,
+            'dump_single_json': True,
+            'skip_download': True,
+            'ignoreerrors': True,
+            'playlist_end': 100,
+            'socket_timeout': 15,
+            'retries': 1,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            }
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.get("/api/search")
 def search():
     query = request.args.get("q", "").strip()
@@ -118,4 +146,4 @@ def stream_info():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
