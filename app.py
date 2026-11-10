@@ -37,7 +37,7 @@ def request_identity():
         with connect_db() as db:
             account = db.execute(
                 'SELECT id, nickname, status FROM users WHERE user_id = ?',
-                (session['user_id'],)
+                (session['user_pk'],)
             ).fetchone()
         if not account or account['status'] != 'ACTIVE':
             session.clear()
@@ -254,8 +254,8 @@ def my_playlists():
     if not session.get('user_id'):
         return auth_error()
     if request.method == 'POST':
-        return jsonify(library.create_playlist(session['user_id'], session['nickname'], body())), 201
-    return jsonify(library.own_playlists(session['user_id']))
+        return jsonify(library.create_playlist(session['user_pk'], session['nickname'], body())), 201
+    return jsonify(library.own_playlists(session['user_pk']))
 
 
 @app.post('/api/playlists/cart-combine')
@@ -264,7 +264,7 @@ def cart_combine():
         return auth_error()
     data = body()
     shared_room = data.get('shared_room') if data.get('shared_room') in ROOMS else None
-    p = library.create_playlist(session['user_id'], session['nickname'], data, shared_room=shared_room)
+    p = library.create_playlist(session['user_pk'], session['nickname'], data, shared_room=shared_room)
     if shared_room:
         hub.publish(shared_room, 'playlists_changed', {'room': shared_room})
     return jsonify(p), 201
@@ -288,7 +288,7 @@ def manage_playlist(playlist_id):
     if not session.get('user_id'):
         return auth_error()
     result = library.change_playlist(
-        session['user_id'],
+        session['user_pk'],
         playlist_id,
         body() if request.method == 'PATCH' else None,
         delete=request.method == 'DELETE'
@@ -309,7 +309,7 @@ def share_playlist(playlist_id):
     room, enabled = data.get('room'), data.get('enabled')
     if not isinstance(room, str) or room not in ROOMS or not isinstance(enabled, bool):
         raise library.ValidationError('라운지와 공유 여부를 확인해주세요.')
-    result = library.change_playlist(session['user_id'], playlist_id, share=(room, enabled))
+    result = library.change_playlist(session['user_pk'], playlist_id, share=(room, enabled))
     if result is None:
         return jsonify({'error': '플레이리스트를 찾을 수 없습니다.'}), 404
     hub.publish(room, 'playlists_changed', {'room': room})
@@ -323,7 +323,7 @@ def playlists(room):
     if request.method == 'POST':
         if not session.get('user_id'):
             return auth_error()
-        p = library.create_playlist(session['user_id'], session['nickname'], {**body(), 'room': room}, shared_room=room)
+        p = library.create_playlist(session['user_pk'], session['nickname'], {**body(), 'room': room}, shared_room=room)
         hub.publish(room, 'playlists_changed', {'room': room})
         return jsonify(p), 201
     return jsonify(library.room_playlists(room))
@@ -335,7 +335,7 @@ def like(room, playlist_id):
         return error
     if not session.get('user_id'):
         return auth_error()
-    result = library.like_playlist(session['user_id'], room, playlist_id)
+    result = library.like_playlist(session['user_pk'], room, playlist_id)
     if result is None:
         return jsonify({'error': '플레이리스트를 찾을 수 없습니다.'}), 404
     likes_count, shared_rooms, is_liked = result
@@ -368,17 +368,17 @@ def messages(room):
     if not isinstance(text, str) or not 1 <= len(text.strip()) <= 300:
         raise library.ValidationError('메시지는 1~300자로 입력해주세요.')
     with hub.lock:
-        if not hub.contains(room, session['user_id'], session['session_id']):
+        if not hub.contains(room, session['user_pk'], session['session_id']):
             return jsonify({'error': '라운지에 연결된 후 메시지를 보낼 수 있습니다.'}), 409
         now = datetime.now(timezone.utc).isoformat()
         with connect_db() as db:
             cursor = db.execute(
                 'INSERT INTO messages (room, user_id, nickname, text, created_at) VALUES (?, ?, ?, ?, ?)',
-                (room, session['user_id'], session['nickname'], text.strip(), now)
+                (room, session['user_pk'], session['nickname'], text.strip(), now)
             )
             message = {
                 'id': cursor.lastrowid,
-                'member_id': library.member_id(session['user_id']),
+                'member_id': library.member_id(session['user_pk']),
                 'user': session['nickname'],
                 'text': text.strip(),
                 'created_at': now
@@ -400,7 +400,7 @@ def events(room):
     token = request.args.get('connection', '')
     if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):
         raise library.ValidationError('연결 식별자가 올바르지 않습니다.')
-    user_id, nickname, session_id = session['user_id'], session['nickname'], session['session_id']
+    user_id, nickname, session_id = session['user_pk'], session['nickname'], session['session_id']
     with hub.lock:
         if token in hub.connections:
             return jsonify({'error': '이미 사용 중인 연결입니다.'}), 409
