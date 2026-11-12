@@ -210,6 +210,6 @@ def init_db():
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room, id);")
 
-        if __name__ == "__main__":
-    init_db()
-    print("[DB 초기화 완료] 4개 핵심 테이블 및 채팅 테이블, 트리거 구축 완료")
+if __name__ == "__main__":
+     init_db()
+     print("[DB 초기화 완료] 4개 핵심 테이블 및 채팅 테이블, 트리거 구축 완료")
