@@ -68,6 +68,7 @@ https://www.youtube.com/watch?v=M7lc1UVf-VE
 - `static/js/youtube-import.js`: 공용 가져오기 UI·중복 제거
 - `static/app.js`: 라운지 화면 상태와 사용자 이벤트
 - `static/js/mypage.js`: 계정·보관함 관리 UI
+- `recommend_service.py`: AI 노래 추천(DB 플레이리스트 + YouTube 관련곡 + Ollama), 요청 제한
 
 | API | 기능 |
 | --- | --- |
@@ -84,6 +85,7 @@ https://www.youtube.com/watch?v=M7lc1UVf-VE
 | `GET /api/rooms/<room>/events?connection=<token>` | 인증된 실시간 스트림 |
 | `GET, POST /api/rooms/<room>/messages` | 최근 대화·메시지 전송 |
 | `POST /api/rooms/<room>/leave` | 현재 연결 퇴장 |
+| `POST /api/rooms/<room>/ai-recommend` | `{request?}`로 AI 노래 추천. 요청자에게만 응답하며 `mode`, `recommendations`(video_id 포함), `stats`, `context` 반환 |
 
 SSE 이벤트는 `snapshot`, `presence`, `message`, `playlists_changed`, `closed`이며 방 ID와 독립적인 연결 토큰을 사용합니다. 사용자 식별에는 공개용 `member_id`를 사용하고 클라이언트가 보내는 작성자 이름을 신뢰하지 않습니다. 프론트엔드의 API 계층을 별도로 두어 추후 통신 방식을 교체할 수 있습니다.
 
@@ -94,6 +96,50 @@ python -m unittest discover -s tests -v
 ```
 
 테스트는 임시 DB와 실제 로컬 HTTP 스트림을 사용합니다. 기존 DB를 건드리지 않으며 인증·계정 저장·유튜브 링크 검증·기존 텍스트 곡 보존·소유권·다중 라운지 공유·재시작 후 데이터·서로 다른 사용자 간 채팅·다중 탭 인원·라운지 분리·퇴장·로그아웃을 검증합니다.
+
+## AI 노래 추천
+
+라운지 채팅창 옆 **✨ AI 추천** 버튼을 누르면 입력칸이 AI 요청용으로 바뀝니다. 결과는 **요청한 사람 화면에만** 보이고, 채팅으로 저장하거나 다른 참여자에게 보내지 않습니다. 추천 곡은 모두 실제 YouTube 영상(`video_id`)이라 **내 플레이리스트로 저장**을 누르면 바로 MP3로 들을 수 있습니다.
+
+**입장한 라운지는 추천에 쓰지 않습니다.** 라운지 장르, 라운지에 공유된 다른 사람의 목록, 라운지 채팅은 추천에 들어가지 않아서, 어느 라운지에서 눌러도 같은 기준으로 추천합니다.
+
+| 입력 | 동작 |
+| --- | --- |
+| 비워두고 Enter | **비슷한 곡 추천.** 내 플레이리스트와 좋아요한 플레이리스트에서 기준 곡 3개를 고릅니다(내 목록 가중치가 더 높고, 누를 때마다 다르게 무작위 선택). 기준 곡마다 YouTube Mix(유튜브 자동 관련곡)와 "같은 플레이리스트에 함께 담긴 곡"(전체 플레이리스트 기준)에 점수를 매기고, 점수 순으로 실존 확인을 통과한 6곡을 보여줍니다. Ollama 없이 동작합니다. |
+| 분위기를 적고 Enter (예: `비 오는 날 듣기 좋은 노래`) | **AI 추천.** Ollama가 요청과 기준 곡을 참고해 장르 제한 없이 8곡을 제안하고, 실존 확인을 통과한 곡만 보여줍니다. AI가 없는 곡을 지어내면 같은 검색으로 찾은 실제 곡(보통 같은 아티스트의 다른 곡)으로 바뀝니다. |
+
+### 실존하는 곡만 보여주는 방법
+
+어떤 곡이 나오는지보다 **실제로 있는 곡인지**를 우선합니다. 확인하지 못한 곡은 절대 보여주지 않습니다.
+
+1. **음원 카탈로그 확인**: iTunes Search API(키 불필요)에서 발매된 곡으로 검색되어야 합니다. 커버·노래방·MR·Instrumental·오르골 버전은 제외합니다. 한국 스토어는 결과가 비어 있어 미국 스토어를 쓰며, 한국 곡은 영어 표기로 나오는 경우가 많습니다(예: 밤편지 → `Through the Night · IU`). **화면의 곡 이름은 항상 카탈로그 표기**입니다.
+2. **YouTube 영상 연결**: 영상 제목에 카탈로그의 곡 제목과 아티스트(제목 또는 채널명)가 모두 단어 단위로 있어야 합니다(예: "IU"는 "Stadium" 안에서 맞지 않음, 띄어쓰기 차이는 허용). 커버·노래방(TJ·금영·MR·멜로디 제거 등, 채널명 포함)·1시간 모음·티저 영상은 제외합니다.
+3. 카탈로그나 YouTube에 연결하지 못하면 그때까지 확인된 곡만 보여주고, 하나도 없으면 오류를 안내합니다.
+
+**왜 YouTube Music이 아니라 iTunes로 확인하나요?** 추천 곡과 영상은 YouTube(Mix·검색)에서 가져오고, iTunes는 "발매된 곡인지" 확인에만 씁니다. YouTube Music은 로그인 없이는 곡 검색 결과가 비어 있고(`ytmusicapi`, `music.youtube.com` 검색 모두 앨범·채널만 반환), 영상에 붙는 공식 음원 정보(track·artist)도 일부 공식 오디오 영상에만 있어서(검색 상위 35개 영상 중 2개) 실존 확인 기준으로 쓸 수 없었습니다.
+
+iTunes는 IP당 분당 약 20회만 허용해서 서버 전체에서 분당 18회로 제한하고, 확인 결과는 6시간 캐시합니다. 한 번 추천에 보통 6~12회를 써서 1분 안에 여러 번 추천받으면 일부만 확인될 수 있습니다(화면에 안내).
+
+- 이미 가진 곡도 걸러내지 않고 추천합니다.
+- 내 플레이리스트·좋아요한 플레이리스트에 곡이 하나도 없으면 비워두고 Enter를 눌러도 AI 추천(널리 사랑받는 곡)으로 동작합니다.
+- 사용자당 5초에 1번, 서버 전체 동시 2건까지 처리합니다.
+- YouTube Music 검색 API(`ytmusicapi`)는 로그인 없이는 곡 검색과 관련곡 결과가 비어 있어서, 이미 쓰고 있는 yt-dlp 서버의 YouTube Mix(`/api/related`)와 검색(`/api/search`)을 사용합니다.
+
+| 환경 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 주소 (Docker에서는 `http://host.docker.internal:11434`) |
+| `OLLAMA_MODEL` | `gemma4` | 사용할 모델 |
+| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초) |
+| `OLLAMA_TEMPERATURE` | `0.5` | 낮을수록 대표곡 위주 |
+| `AI_YOUTUBE_TIMEOUT` | `45` | yt-dlp 서버 응답 대기 시간(초) |
+| `AI_CATALOG_COUNTRY` | `US` | 곡 확인에 쓰는 iTunes 스토어 국가 (`KR`은 결과가 비어 있음) |
+| `ITUNES_MAX_PER_MINUTE` | `18` | 서버 전체의 분당 iTunes 호출 상한 |
+| `AI_CATALOG_TIMEOUT` | `8` | iTunes 응답 대기 시간(초) |
+| `AI_COOLDOWN_SECONDS` | `5` | 사용자별 재요청 대기 시간 |
+| `AI_MAX_CONCURRENT` | `2` | 동시에 처리할 추천 요청 수 |
+| `AI_DEBUG` | 꺼짐 | `1`이면 서버 콘솔에 프롬프트와 AI가 제안한 곡을 출력 |
+
+Ollama 준비: `ollama pull gemma4` 후 `ollama serve`.
 
 구현 참고: [SSE 표준](https://html.spec.whatwg.org/multipage/server-sent-events.html), [YouTube 임베드 플레이어](https://developers.google.com/youtube/player_parameters).
 

@@ -242,3 +242,26 @@ dialog { width: min(560px, 94vw); }
 .now-playing { color: #315f52; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
 .library-player { background: #edf2e7; border: 1px solid #d1dfc8; border-radius: 12px; padding: 16px; margin-top: 18px; }
 @media (max-width: 540px) { .import-controls { flex-direction: column; } }
+
+/* AI song recommendation (private to the requester) */
+.ai-btn { flex-shrink: 0; white-space: nowrap; background: #fff; border: 1px solid #b9cfc2; border-radius: 9px; color: #315f52; font-size: 13px; padding: 0 12px; cursor: pointer; }
+.ai-btn:hover:not(:disabled) { background: #eef5ef; }
+.ai-btn:disabled { opacity: .55; cursor: not-allowed; }
+.ai-btn[aria-pressed="true"] { background: #e4efe7; border-color: #6e9a86; }
+.chat form.ai-mode input { background: #f3f8f1; border-color: #6e9a86; box-shadow: 0 0 0 3px #4e8a6c22; }
+.ai-mode-hint { margin: 0 0 6px; font-size: 12px; line-height: 1.5; color: #315f52; }
+.ai-result { margin: 0 0 12px; padding: 12px 14px; background: #f3f8f1; border: 1px solid #cfe0d0; border-radius: 12px; max-height: 420px; overflow-y: auto; }
+.ai-result-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ai-result h3 { margin: 0; font-size: 14px; }
+.ai-result h3 small { font-size: 11px; font-weight: 400; margin-left: 6px; }
+.ai-close { background: transparent; border: 0; color: #6b756d; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+.ai-result-list { margin: 8px 0 6px; padding-left: 20px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.ai-result-list li { margin-bottom: 8px; }
+.ai-result-list .youtube-link { margin-left: 6px; font-size: 12px; }
+.ai-note { margin: 0; font-size: 11px; }
+.ai-context { margin: 6px 0 0; font-size: 12px; color: #5c665f; }
+.ai-context summary { cursor: pointer; }
+.ai-context-list { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+.ai-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ai-actions button { font-size: 13px; padding: 8px 12px; }
+.ai-result .feedback:empty { display: none; }
