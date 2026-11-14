@@ -566,6 +566,24 @@ def events(room):
     )
 
 
+@app.post('/api/rooms/<room>/listening')
+def listening(room):
+    if not session.get('user_id'):
+        return auth_error()
+    if error := room_error(room):
+        return error
+    data = body()
+    playlist = data.get('playlist_id')
+    if not isinstance(data.get('connection'), str):
+        raise library.ValidationError('연결 식별자가 올바르지 않습니다.')
+    if playlist is not None:
+        if type(playlist) is not int or not any(p['id'] == playlist for p in library.room_playlists(room)):
+            raise library.ValidationError('라운지에 공유된 플레이리스트를 선택해주세요.')
+    if not hub.listening(data.get('connection'), room, session['session_id'], playlist):
+        return jsonify({'error': '라운지에 다시 연결해주세요.'}), 409
+    return jsonify({'ok': True})
+
+
 @app.post('/api/rooms/<room>/leave')
 def leave(room):
     if not session.get('user_pk'):

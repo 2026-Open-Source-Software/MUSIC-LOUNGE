@@ -5,25 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MUSIC LOUNGE | 취향이 만나는 공간</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lounge-home.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
     <script type="module" src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
-<body data-authenticated="{{ 'true' if session.get('user_id') else 'false' }}">
+<body class="lounge-home" data-authenticated="{{ 'true' if session.get('user_id') else 'false' }}">
 <header class="topbar">
     <a class="logo" href="{{ url_for('index') }}">♫ MUSIC <span>LOUNGE</span></a>
     <a class="secondary" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">{% if session.get('user_id') %}마이페이지 · {{ session['nickname'] }}{% else %}로그인{% endif %}</a>
-    <span class="status">● MUSIC CONNECTS US</span>
 </header>
 <main class="container">
     <section class="hero">
-        <div class="eyebrow">YOUR MUSIC. YOUR PEOPLE.</div>
-        <h1>취향이 만나는<br><em>우리만의 음악 라운지</em></h1>
-        <p>유튜브 음악을 모으고, 같은 취향의 사람들과 나누세요.</p>
-        <a class="primary hero-action" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">내 플레이리스트 만들기 ↗</a>
+        <div class="hero-copy">
+            <h1>취향 기반<br>가상 음악 라운지<br><em>MUSIC LOUNGE</em></h1>
+            <p>혼자 듣던 음악이 누군가의 새로운 취향이 되는 곳.<br>좋아하는 멜로디를 공유하고, 서로의 감성을 이어보세요.</p>
+            <div class="hero-actions"><a class="primary hero-action" href="#selection">내 취향의 라운지 찾기 <span aria-hidden="true">↗</span></a><a class="hero-library" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">내 플레이리스트 만들기 <span aria-hidden="true">↗</span></a></div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+            <div class="art-orbit"></div><div class="art-glow"></div>
+            <div class="vinyl"><div class="vinyl-label"><span>MUSIC<br>LOUNGE</span><i></i><small>SIDE A · YOUR VIBE</small></div></div>
+            <div class="sound-capsule"><span class="sound-bars"><i></i><i></i><i></i><i></i><i></i></span><div>Find your frequency.<small>취향으로 연결되는 순간</small></div><span class="capsule-arrow">↗</span></div>
+            <span class="art-caption">FIND YOUR SONG. FIND YOUR VIBE.</span>
+        </div>
     </section>
     <p id="page-feedback" class="feedback" role="status" aria-live="polite"></p>
     <section id="selection">
-        <div class="section-heading"><h2>EXPLORE LOUNGES</h2><span>지금 듣고 싶은 장르를 선택하세요</span></div>
+        <div class="section-heading"><div><div class="eyebrow">FIND YOUR VIBE</div><h2>오늘, 당신의 감성은<span class="heading-dot">?</span></h2></div><span class="section-description">당신의 취향이 머무를 네 개의 공간 <span aria-hidden="true"></span></span></div>
         <div id="room-cards" class="room-grid"></div>
+        <div class="selection-note"><span>각자의 플레이리스트가, 우리의 음악이 되는 곳.</span></div>
     </section>
     <section id="lounge" class="hidden">
         <div class="lounge-header">
@@ -32,6 +41,15 @@
         </div>
         <div class="lounge-grid">
             <div class="lounge-sidebar">
+                <aside class="panel listening-panel" aria-labelledby="listening-heading">
+                    <div class="eyebrow" id="listening-heading">NOW LISTENING</div>
+                    <div class="listening-art" aria-hidden="true"><div class="mini-record"><span>ML</span></div></div>
+                    <h3 id="listening-title">음악을 골라보세요</h3>
+                    <p id="listening-state" class="muted" role="status">플레이리스트를 선택하면 여기에 표시됩니다.</p>
+                    <p id="listening-count" class="listening-count" aria-live="polite">함께 듣는 사람 0명</p>
+                    <div class="listening-controls"><button id="listening-mute" class="secondary" type="button" aria-pressed="false" disabled>음소거</button><button id="listening-tracks-toggle" class="secondary" type="button" aria-expanded="false" aria-controls="listening-tracks" disabled>곡 목록</button></div>
+                    <div id="listening-tracks" class="hidden"></div>
+                </aside>
                 <aside class="panel ranking" aria-labelledby="ranking-heading"><h3 class="panel-title" id="ranking-heading">TOP PLAYLISTS</h3><div id="ranking-list"></div></aside>
                 <aside class="panel participants" aria-labelledby="participants-heading">
                     <div class="participants-heading"><h3 id="participants-heading">참여자</h3><span id="participant-count" class="count-badge" aria-live="polite">0명</span></div>

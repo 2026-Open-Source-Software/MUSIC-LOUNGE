@@ -31,6 +31,8 @@ export function renderPlayer(container, playlist) {
     const controls = el("div", "mp3-controls"), now = el("p", "now-playing", "재생할 곡을 선택해주세요."), status = el("p", "feedback audio-status");
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
     const audio = el("audio", "mp3-audio"); audio.controls = true; audio.preload = "none";
+    const notify = () => container.dispatchEvent(new CustomEvent("playback-state", { detail: { playlist, playing: !audio.paused && !audio.ended && !audio.error && audio.readyState >= 3, muted: audio.muted } }));
+    ["playing", "pause", "ended", "waiting", "error", "emptied", "volumechange"].forEach((event) => audio.addEventListener(event, notify));
     const prev = el("button", "secondary", "← 이전"), all = el("button", "primary play-all", "▶ 전체 재생"), next = el("button", "secondary", "다음 →");
     [prev, all, next].forEach((b) => b.type = "button");
     controls.append(prev, all, next);
