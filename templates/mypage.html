@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>마이페이지 | MUSIC LOUNGE</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mypage.css') }}">
     <script type="module" src="{{ url_for('static', filename='js/mypage.js') }}" defer></script>
 </head>
-<body>
+<body class="workspace-theme mypage-theme">
 <header class="topbar">
     <a class="logo" href="{{ url_for('index') }}">♫ MUSIC <span>LOUNGE</span></a>
     <a class="secondary" href="{{ url_for('index') }}">라운지 둘러보기</a>

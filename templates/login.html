@@ -5,20 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>로그인 | MUSIC LOUNGE</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lounge-home.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
     <script src="{{ url_for('static', filename='js/login.js') }}" defer></script>
 </head>
-<body>
+<body class="workspace-theme">
     <header class="topbar">
         <a class="logo" href="{{ url_for('index') }}">♫ MUSIC <span>LOUNGE</span></a>
         <span class="status">YOUR MUSIC. YOUR PEOPLE.</span>
     </header>
     <main class="login-container">
+        <aside class="hero-art login-record-art" aria-hidden="true">
+            <div class="art-orbit"></div><div class="art-glow"></div>
+            <div class="login-turntable">
+                <div class="vinyl"><div class="vinyl-label"><span>MUSIC<br>LOUNGE</span><i></i><small>SIDE A · YOUR VIBE</small></div></div>
+                <svg class="login-tonearm" viewBox="0 0 500 500" fill="none" focusable="false">
+                    <defs><linearGradient id="tonearm-metal" x1="400" y1="70" x2="425" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#69736a"/><stop offset=".45" stop-color="#e1e6d9"/><stop offset="1" stop-color="#7c8779"/></linearGradient></defs>
+                    <g style="filter: drop-shadow(5px 8px 4px #0009)">
+                        <circle cx="430" cy="80" r="29" fill="#20271f" stroke="#8e9b83" stroke-width="2"/>
+                        <path d="M430 62V110L410 266Q408 283 395 293L361 321" stroke="#101710" stroke-width="15" stroke-linecap="round"/>
+                        <path d="M430 62V110L410 266Q408 283 395 293L361 321" stroke="url(#tonearm-metal)" stroke-width="9" stroke-linecap="round"/>
+                        <circle cx="430" cy="80" r="12" fill="#b7c7a0" stroke="#45533d" stroke-width="3"/>
+                        <path d="M430 42V57" stroke="#a9b69c" stroke-width="18"/>
+                        <path d="M347 322L363 307L382 326L366 341Z" fill="#b7c7a0" stroke="#d8e1cc" stroke-width="2"/>
+                        <path d="M350 334L344 340" stroke="#d8e1cc" stroke-width="3"/>
+                    </g>
+                </svg>
+            </div>
+        </aside>
         <section class="login-card" aria-labelledby="login-title">
             <div class="login-symbol" aria-hidden="true">♫</div>
             <p class="eyebrow">WELCOME TO THE LOUNGE</p>
             <h1 id="login-title">나만의 음악을 시작해요</h1>
-            <p class="login-description">로그인하고 나만의 음악 취향을 나눠보세요.</p>
+            <p class="login-description">로그인하고 나만의 플레이리스트를 만들어보세요.</p>
 
             <form id="login-form" method="post" action="{{ url_for('login_submit') }}">
                 <label for="nickname">닉네임</label>
