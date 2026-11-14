@@ -575,9 +575,7 @@ def leave(room):
         hub.leave(data.get('connection', ''), session['session_id'])
     return jsonify({'ok': True})
 
- =====================================================================
-# [신규 API 1] 라운지 내 방 목록 조회 및 새 방 개설 (요구사항 1, 6, 7)
-# =====================================================================
+# 라운지 내 방 목록 조회 및 새 방 개설
 
 @app.get('/api/rooms/<room>/playlist-rooms')
 def list_playlist_rooms(room):
@@ -676,9 +674,8 @@ def create_playlist_room(room):
     }), 201
 
 
-# =====================================================================
-# [신규 API 2] 방 상세 정보, 대기열, 참여자 목록 및 시간 동기화 (요구사항 2, 3)
-# =====================================================================
+# 방 상세 정보, 대기열, 참여자 목록 및 시간 동기화
+
 
 def compute_synchronized_position(current_pos, is_playing, synced_at_iso, duration=0):
     """서버 기준 시각과 현재 시각의 차이를 합산해 실시간 재생 위치(초) 산출"""
@@ -762,9 +759,7 @@ def get_playlist_room_detail(room_id):
     })
 
 
-# =====================================================================
-# [신규 API 3] 호스트 전용 재생 제어 및 방 종료 (요구사항 4)
-# =====================================================================
+# 호스트 전용 재생 제어 및 방 종료 
 
 @app.post('/api/playlist-rooms/<int:room_id>/control')
 def control_playlist_room(room_id):
@@ -866,9 +861,7 @@ def close_playlist_room(room_id):
     return jsonify({'success': True, 'message': '방이 성공적으로 종료되었습니다.'})
 
 
-# =====================================================================
-# [신규 API 4] 방 내부 전용 채팅 (요구사항 5)
-# =====================================================================
+#  방 내부 전용 채팅
 
 @app.get('/api/playlist-rooms/<int:room_id>/messages')
 def get_room_messages(room_id):
@@ -929,9 +922,9 @@ def send_room_message(room_id):
     return jsonify(msg_payload), 201
 
 
-# =====================================================================
-# [신규 API 5] 방 실시간 SSE 스트림 & 퇴장 (요구사항 1, 2, 3, 5)
-# =====================================================================
+
+# 방 실시간 SSE 스트림 & 퇴장 
+
 
 @app.get('/api/playlist-rooms/<int:room_id>/events')
 def playlist_room_events(room_id):
