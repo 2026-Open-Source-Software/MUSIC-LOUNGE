@@ -21,7 +21,7 @@ const CHAT_PLACEHOLDER = $("chat-input").placeholder;
 const CHAT_MAXLENGTH = $("chat-input").maxLength;
 const AI_PLACEHOLDER = "듣고 싶은 분위기 (비워두면 비슷한 곡 추천)";
 const AI_MAX_REQUEST = 100;
-const AI_TIMEOUT_MS = 300000; // the LLM on a CPU and YouTube lookups can be slow; the server has its own limits
+const AI_TIMEOUT_MS = 300000; // the LLM and YouTube lookups can be slow; the server has its own limits
 
 function feedback(error) { $("page-feedback").textContent = error.message; }
 function updateStatus(status) {

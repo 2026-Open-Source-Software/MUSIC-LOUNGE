@@ -129,7 +129,7 @@ iTunes는 IP당 분당 약 20회만 허용해서 서버 전체에서 분당 18�
 | --- | --- | --- |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 주소 (Docker에서는 `http://host.docker.internal:11434`) |
 | `OLLAMA_MODEL` | `gemma4` | 사용할 모델 |
-| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초). CPU로 실행하면 늘려주세요 |
+| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초) |
 | `OLLAMA_TEMPERATURE` | `0.5` | 낮을수록 대표곡 위주 |
 | `AI_YOUTUBE_TIMEOUT` | `45` | yt-dlp 서버 응답 대기 시간(초) |
 | `AI_CATALOG_COUNTRY` | `US` | 곡 확인에 쓰는 iTunes 스토어 국가 (`KR`은 결과가 비어 있음) |
@@ -139,7 +139,7 @@ iTunes는 IP당 분당 약 20회만 허용해서 서버 전체에서 분당 18�
 | `AI_MAX_CONCURRENT` | `2` | 동시에 처리할 추천 요청 수 |
 | `AI_DEBUG` | 꺼짐 | `1`이면 서버 콘솔에 프롬프트와 AI가 제안한 곡을 출력 |
 
-Ollama 준비: `ollama pull gemma4` 후 `ollama serve`. 오래된 NVIDIA GPU에서 `llama-server process has terminated` 오류가 나면 PowerShell에서 `$env:CUDA_VISIBLE_DEVICES = '-1'`로 설정한 뒤 `ollama serve`를 실행해 CPU로 돌리면 됩니다(느림).
+Ollama 준비: `ollama pull gemma4` 후 `ollama serve`.
 
 구현 참고: [SSE 표준](https://html.spec.whatwg.org/multipage/server-sent-events.html), [YouTube 임베드 플레이어](https://developers.google.com/youtube/player_parameters).
 
