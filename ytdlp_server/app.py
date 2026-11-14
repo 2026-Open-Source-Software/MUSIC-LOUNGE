@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import tempfile
 from flask import Flask, request, jsonify, send_file
@@ -12,7 +13,8 @@ def index():
         "service": "YT-DLP API Server",
         "endpoints": {
             "health": "/health",
-            "search": "/api/search?q=<query>",
+            "search": "/api/search?q=<query>&limit=<1~10>",
+            "related": "/api/related?video_id=<id>&limit=<1~25> (YouTube Mix 관련곡)",
             "stream": "/api/stream?url=<youtube_url_or_id> (오디오 파일(mp3) 직접 반환)"
         }
     })
@@ -49,6 +51,52 @@ def extract_metadata():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.get("/api/related")
+def related():
+    """Songs YouTube itself picks to follow a video: its auto-generated Mix (list=RD<video_id>).
+
+    The first entry of a Mix is the video itself, so it is not returned.
+    """
+    video_id = request.args.get("video_id", "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        return jsonify({"error": "올바른 영상 ID를 입력해주세요."}), 400
+    try:
+        limit = min(25, max(1, int(request.args.get("limit", 15))))
+    except ValueError:
+        limit = 15
+    ydl_opts = {
+        'ignoreconfig': True,
+        'no_cache_dir': True,
+        'extract_flat': True,
+        'skip_download': True,
+        'ignoreerrors': True,
+        'quiet': True,
+        'playlistend': limit + 1,
+        'socket_timeout': 15,
+        'retries': 1,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}&list=RD{video_id}", download=False)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    tracks = []
+    for entry in (info or {}).get('entries') or []:
+        vid = entry.get('id') if isinstance(entry, dict) else None
+        if not isinstance(vid, str) or vid == video_id or not re.fullmatch(r"[A-Za-z0-9_-]{11}", vid):
+            continue
+        tracks.append({
+            "id": vid,
+            "title": entry.get('title'),
+            "duration": entry.get('duration'),
+            "uploader": entry.get('channel') or entry.get('uploader'),
+            "url": f"https://www.youtube.com/watch?v={vid}",
+        })
+        if len(tracks) >= limit:
+            break
+    return jsonify(tracks)
+
+
 @app.get("/api/search")
 def search():
     query = request.args.get("q", "").strip()
@@ -67,8 +115,12 @@ def search():
                 }
             }
         }
+        try:
+            limit = min(10, max(1, int(request.args.get("limit", 10))))
+        except ValueError:
+            limit = 10
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            search_query = query if query.startswith("ytsearch") else f"ytsearch10:{query}"
+            search_query = query if query.startswith("ytsearch") else f"ytsearch{limit}:{query}"
             result = ydl.extract_info(search_query, download=False)
             entries = result.get('entries', [])
             

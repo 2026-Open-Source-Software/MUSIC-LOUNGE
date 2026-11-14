@@ -50,7 +50,16 @@
             <aside class="panel chat" aria-labelledby="chat-heading">
                 <div class="chat-heading"><h2 id="chat-heading">라운지 채팅</h2><span id="connection-status" class="connection-status" role="status">연결 대기</span></div>
                 <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="라운지 메시지"></div>
-                <form id="chat-form"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button></form>
+                <section id="ai-result" class="ai-result hidden" aria-labelledby="ai-result-heading" aria-live="polite">
+                    <div class="ai-result-head"><h3 id="ai-result-heading">🎧 AI 추천 <small class="muted">나에게만 보여요</small></h3><button type="button" id="ai-result-close" class="ai-close" aria-label="AI 추천 닫기">✕</button></div>
+                    <ol id="ai-result-list" class="ai-result-list"></ol>
+                    <p id="ai-result-note" class="muted ai-note"></p>
+                    <details class="ai-context"><summary>추천에 참고한 정보</summary><ul id="ai-context-list" class="ai-context-list"></ul></details>
+                    <div class="ai-actions"><button type="button" class="primary" id="ai-save-btn">내 플레이리스트로 저장</button><button type="button" class="secondary" id="ai-again-btn">다시 추천</button></div>
+                    <p id="ai-save-feedback" class="feedback" role="status"></p>
+                </section>
+                <p id="ai-mode-hint" class="ai-mode-hint hidden" role="status">✨ AI 추천 모드 · 비워두고 Enter: 내 플레이리스트·좋아요한 곡과 비슷한 노래 · 분위기를 적고 Enter: AI가 골라줘요 (예: 비 오는 날 듣기 좋은 노래) · Esc로 취소</p>
+                <form id="chat-form"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button><button type="button" id="ai-recommend-btn" class="ai-btn" title="AI에게 노래 추천받기. 누르면 입력칸이 AI 요청용으로 바뀌어요." aria-pressed="false" disabled>✨ AI 추천</button></form>
                 <p id="chat-feedback" class="feedback" role="status"></p>
             </aside>
         </div>
