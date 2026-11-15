@@ -26,10 +26,10 @@
 | 컬럼명 | 데이터 타입 | 제약 조건 | 기본값 | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | 자동 증가 | 방 고유 식별 번호 |
-| `lounge_room` | TEXT | NOT NULL, FK -> lounges(room) | - | 방이 개설된 장르 라운지 코드 (`hiphop` 등) |
+| `lounge_room` | TEXT | NOT NULL, FK -> lounges(room) ON DELETE CASCADE | - | 방이 개설된 장르 라운지 코드 (`hiphop` 등) |
 | `playlist_id` | INTEGER | NOT NULL, FK -> playlists(id) ON DELETE CASCADE | - | 재생 대상 플레이리스트 ID |
 | `host_id` | INTEGER | NOT NULL, FK -> users(id) ON DELETE CASCADE | - | 방 호스트(개설자)의 회원 번호 (`users.id`) |
-| `title` | TEXT | NOT NULL | - | 방 표시 제목 (기본: 플레이리스트 제목) |
+| `title` | TEXT | NOT NULL | - | 방 표시 제목 (미지정 시 `"{닉네임}님의 함께 듣기 방"`) |
 | `status` | TEXT | NOT NULL CHECK(status IN ('ACTIVE', 'PAUSED', 'CLOSED')) | 'ACTIVE' | 방 활성화 상태 |
 | `current_track_index` | INTEGER | NOT NULL | 0 | 현재 재생 중인 곡의 인덱스 (0부터 시작) |
 | `current_video_id` | TEXT | NULL | NULL | 현재 재생 중인 곡의 유튜브 Video ID |
@@ -37,7 +37,7 @@
 | `is_playing` | INTEGER | NOT NULL CHECK(is_playing IN (0, 1)) | 1 | 1: 재생 중, 0: 일시 정지 |
 | `synced_at` | TEXT | NOT NULL | - | 마지막 상태 변경 UTC ISO-8601 타임스탬프 |
 | `created_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP | 방 생성 일시 |
-| `updated_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP | 최종 상태 수정 일시 |
+| `updated_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP | 최종 상태 수정 일시 (트리거 자동 갱신) |
 
 ### (2) 방 내부 전용 채팅 (`room_messages`)
 방 참여자 간에 오가는 실시간 대화 내역을 격리 보관합니다.
@@ -51,6 +51,14 @@
 | `text` | TEXT | NOT NULL (1~300자) | 채팅 본문 내용 |
 | `created_at` | TEXT | NOT NULL | 작성 시각 (UTC ISO-8601) |
 
+### (3) 추가 인덱스 및 트리거
+- **인덱스:**
+  - `idx_playlist_rooms_lounge`: `playlist_rooms(lounge_room, status)` — 라운지별 활성 방 목록 고속 조회
+  - `idx_playlist_rooms_host`: `playlist_rooms(host_id)` — 호스트별 개설 방 조회
+  - `idx_room_messages_room_id`: `room_messages(room_id, id)` — 방 내부 최근 채팅 100건 고속 조회
+- **트리거:**
+  - `update_playlist_room_timestamp`: `playlist_rooms` 테이블의 행이 업데이트될 때 `updated_at = CURRENT_TIMESTAMP`로 자동 갱신
+
 ---
 
 ## 3. 백엔드 REST API 및 실시간 통신 명세
@@ -58,7 +66,7 @@
 ### 3.1. 라운지 내 방 목록 조회 및 방 생성
 #### ① 라운지 내 활성 방 목록 조회
 - **Method & Path:** `GET /api/rooms/<room>/playlist-rooms`
-- **설명:** 해당 장르 라운지에서 현재 개설되어 음악을 재생 중인 활성 방 목록을 조회합니다.
+- **설명:** 해당 장르 라운지에서 현재 개설되어 음악을 재생 중인 활성(`status != 'CLOSED'`) 방 목록을 최신순으로 조회합니다.
 - **Response (200 OK):**
 ```json
 {
@@ -72,6 +80,7 @@
       "playlist_title": "Good Vibes Only",
       "host": {
         "user_pk": 1,
+        "user_id": "jimin01",
         "nickname": "지민",
         "member_id": "9f86d081884c7d659a2feaa0"
       },
@@ -82,8 +91,9 @@
         "duration": 185
       },
       "is_playing": true,
+      "status": "ACTIVE",
       "participant_count": 5,
-      "created_at": "2026-11-13T06:00:00Z"
+      "created_at": "2026-11-13 06:00:00"
     }
   ]
 }
@@ -98,14 +108,26 @@
   "title": "DJ 지민의 새벽 힙합방"
 }
 ```
-- **Response (201 Created):** 개설된 방 상세 정보 및 `is_host: true` 반환. 라운지에 `playlist_room_created` 알림 전파.
+- **Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "room_id": 1,
+    "title": "DJ 지민의 새벽 힙합방",
+    "playlist_id": 10,
+    "is_host": true
+  }
+}
+```
+- **실시간 연동:** 개설 즉시 해당 장르 라운지 SSE 스트림에 `playlist_room_created` 이벤트(`{"room": "hiphop", "room_id": 1, "title": "..."}`)를 브로드캐스트합니다.
 
 ---
 
 ### 3.2. 방 입장, 상세 정보, 대기열 및 참여자 조회
 #### ① 방 상세 정보 및 대기열/참여자 조회
 - **Method & Path:** `GET /api/playlist-rooms/<int:room_id>`
-- **설명:** 방에 입장했을 때 현재 재생 중인 곡, 재생 시간(서버 경과 시간 보정값), 재생 예정 목록, 참여자 목록 및 인원 수를 조회합니다.
+- **설명:** 방에 입장했을 때 현재 재생 중인 곡, 재생 시간(서버 경과 시간 보정값), 재생 예정 목록, 전체 곡 수, 참여자 목록 및 인원 수를 조회합니다.
 - **Response (200 OK):**
 ```json
 {
@@ -116,23 +138,24 @@
     "lounge_room": "hiphop",
     "playlist_id": 10,
     "playlist_title": "Good Vibes Only",
+    "is_host": false,
     "host": {
       "user_pk": 1,
+      "user_id": "jimin01",
       "nickname": "지민",
       "member_id": "9f86d081884c7d659a2feaa0"
     },
-    "is_host": false,
     "playback": {
+      "current_track_index": 0,
       "current_track": {
         "title": "SUN GOES DOWN",
         "artist": "Khalid",
         "video_id": "ba7mB8oueCY",
         "duration": 185
       },
-      "current_track_index": 0,
       "current_position_sec": 42.5,
       "is_playing": true,
-      "synced_at": "2026-11-13T06:10:00Z"
+      "synced_at": "2026-11-13T06:10:00+00:00"
     },
     "upcoming_tracks": [
       {
@@ -148,11 +171,12 @@
         "duration": 312
       }
     ],
+    "all_tracks_count": 12,
     "participant_count": 3,
     "participants": [
-      {"member_id": "9f86d081...", "nickname": "지민", "is_host": true},
-      {"member_id": "a3b2c1d0...", "nickname": "도윤", "is_host": false},
-      {"member_id": "e5f6g7h8...", "nickname": "서연", "is_host": false}
+      {"member_id": "9f86d081...", "nickname": "지민", "user_id": "jimin01"},
+      {"member_id": "a3b2c1d0...", "nickname": "도윤", "user_id": "doyoon02"},
+      {"member_id": "e5f6g7h8...", "nickname": "서연", "user_id": "seoyeon03"}
     ]
   }
 }
@@ -172,31 +196,82 @@
   - **특정 곡 변경:** `{"action": "change_track", "track_index": 2}`
   - **다음 곡 / 이전 곡:** `{"action": "next_track"}` 또는 `{"action": "prev_track"}`
 - **동작:** DB 상태 즉시 업데이트 및 해당 방의 모든 접속자에게 `room_sync` SSE 이벤트 브로드캐스트.
-- **Response (200 OK):** `{"ok": true, "sync": { ... }}`
+- **Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "room_id": 1,
+    "action": "play",
+    "current_track_index": 0,
+    "current_track": {
+      "title": "SUN GOES DOWN",
+      "artist": "Khalid",
+      "video_id": "ba7mB8oueCY",
+      "duration": 185
+    },
+    "current_position_sec": 45.0,
+    "is_playing": true,
+    "synced_at": "2026-11-13T06:15:00+00:00",
+    "upcoming_tracks": [ ... ]
+  }
+}
+```
 
 #### ② 방 종료
 - **Method & Path:** `DELETE /api/playlist-rooms/<int:room_id>`
 - **설명:** 호스트가 방을 닫습니다. `status = 'CLOSED'` 처리 후 접속자들에게 `room_closed` 이벤트를 푸시합니다.
+- **Response (200 OK):** `{"success": true, "message": "방이 성공적으로 종료되었습니다."}`
 
 ---
 
 ### 3.4. 방 내부 전용 채팅 API
 #### ① 방 채팅 내역 조회
 - **Method & Path:** `GET /api/playlist-rooms/<int:room_id>/messages`
-- **Response (200 OK):** `[{"id": 1, "member_id": "...", "user": "도윤", "text": "안녕하세요!", "created_at": "..."}]`
+- **설명:** 해당 방의 최근 채팅 내역 최대 100건을 과거→최신 순으로 반환합니다.
+- **Response (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "member_id": "a3b2c1d0...",
+    "user": "도윤",
+    "text": "안녕하세요!",
+    "created_at": "2026-11-13T06:11:00+00:00"
+  }
+]
+```
 
 #### ② 방 채팅 전송
 - **Method & Path:** `POST /api/playlist-rooms/<int:room_id>/messages`
-- **Request Body (JSON):** `{"text": "방 안에서만 공유되는 메시지입니다."}`
+- **Request Body (JSON):** `{"text": "방 안에서만 공유되는 메시지입니다."}` (1~300자)
 - **동작:** `room_messages` 테이블 저장 및 방 접속자들에게 `room_message` SSE 이벤트 푸시.
+- **Response (201 Created):**
+```json
+{
+  "id": 2,
+  "room_id": 1,
+  "member_id": "a3b2c1d0...",
+  "user": "도윤",
+  "text": "방 안에서만 공유되는 메시지입니다.",
+  "created_at": "2026-11-13T06:12:00+00:00"
+}
+```
 
 ---
 
-### 3.5. 방 실시간 이벤트 스트림 (SSE)
-- **Method & Path:** `GET /api/playlist-rooms/<int:room_id>/events?connection=<토큰>`
+### 3.5. 방 실시간 이벤트 스트림 (SSE) 및 퇴장
+#### ① 방 전용 SSE 스트림 구독
+- **Method & Path:** `GET /api/playlist-rooms/<int:room_id>/events?connection=<20~80자_토큰>`
 - **이벤트 목록:**
-  1. `room_snapshot`: 방 입장 직후 1회 전송 (현재 재생 상태, 예정곡, 참여자, 최근 대화 100건)
+  1. `room_snapshot`: 방 입장 직후 1회 전송 (`room_id`, `title`, `playlist_title`, `playback`, `upcoming_tracks`, `participants`, `messages`(최근 대화 100건), `self`)
   2. `room_sync`: 호스트의 제어로 재생/정지/탐색/곡변경 시 방 전체 브로드캐스트
   3. `room_message`: 방 내부 신규 채팅 발생 시 브로드캐스트
-  4. `room_presence`: 참여자 입/퇴장 시 인원수 및 목록 갱신
-  5. `room_closed`: 호스트가 방을 종료했을 때 전송
+  4. `room_presence`: 참여자 입/퇴장 시 인원수(`count`) 및 목록(`participants`) 갱신 (다중 탭 중복 제거)
+  5. `room_closed`: 호스트가 방을 종료했을 때 전송 (`{"room_id": 1}`)
+  6. `closed`: 연결 종료 시 전송 (`{}`)
+
+#### ② 방 명시적 퇴장
+- **Method & Path:** `POST /api/playlist-rooms/<int:room_id>/leave`
+- **Request Body (JSON):** `{"connection": "<토큰>"}`
+- **Response (200 OK):** `{"ok": true}` (방 참여자 목록에서 즉시 연결 해제 및 `room_presence` 브로드캐스트)

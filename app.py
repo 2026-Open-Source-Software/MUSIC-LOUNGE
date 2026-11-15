@@ -566,6 +566,24 @@ def events(room):
     )
 
 
+@app.post('/api/rooms/<room>/listening')
+def listening(room):
+    if not session.get('user_pk'):
+        return auth_error()
+    if error := room_error(room):
+        return error
+    data = body()
+    playlist = data.get('playlist_id')
+    if not isinstance(data.get('connection'), str):
+        raise library.ValidationError('연결 식별자가 올바르지 않습니다.')
+    if playlist is not None:
+        if type(playlist) is not int or not any(p['id'] == playlist for p in library.room_playlists(room)):
+            raise library.ValidationError('라운지에 공유된 플레이리스트를 선택해주세요.')
+    if not hub.listening(data.get('connection'), room, session['session_id'], playlist):
+        return jsonify({'error': '라운지에 다시 연결해주세요.'}), 409
+    return jsonify({'ok': True})
+
+
 @app.post('/api/rooms/<room>/leave')
 def leave(room):
     if not session.get('user_pk'):
@@ -574,6 +592,36 @@ def leave(room):
     if isinstance(data, dict):
         hub.leave(data.get('connection', ''), session['session_id'])
     return jsonify({'ok': True})
+
+
+def unpack_songs(raw_songs):
+    """playlists.songs 컬럼(JSON dict 또는 list)에서 곡 리스트만 안전하게 추출"""
+    _, _, songs = library._deserialize_songs_col(raw_songs)
+    return songs
+
+
+def get_room_chat_history(db, room_id):
+    """방 내부 최근 채팅 100건을 과거 -> 최신 순으로 조회"""
+    rows = db.execute(
+        """
+        SELECT id, room_id, user_id, nickname, text, created_at
+        FROM room_messages
+        WHERE room_id = ?
+        ORDER BY id DESC LIMIT 100
+        """,
+        (room_id,),
+    ).fetchall()
+    return [
+        {
+            'id': r['id'],
+            'member_id': library.member_id(r['user_id']),
+            'user': r['nickname'],
+            'text': r['text'],
+            'created_at': r['created_at'],
+        }
+        for r in reversed(rows)
+    ]
+
 
 # 라운지 내 방 목록 조회 및 새 방 개설
 
@@ -596,7 +644,7 @@ def list_playlist_rooms(room):
 
     room_list = []
     for r in rows:
-        songs = json.loads(r['songs'])
+        songs = unpack_songs(r['songs'])
         cur_idx = r['current_track_index']
         cur_track = songs[cur_idx] if 0 <= cur_idx < len(songs) else None
         participants = hub.playlist_room_participants(r['id'])
@@ -611,13 +659,13 @@ def list_playlist_rooms(room):
                 'user_pk': r['host_id'],
                 'user_id': r['host_user_id'],
                 'nickname': r['host_nickname'],
-                'member_id': library.member_id(r['host_user_id'])
+                'member_id': library.member_id(r['host_user_id']),
             },
             'current_track': cur_track,
             'is_playing': bool(r['is_playing']),
             'status': r['status'],
             'participant_count': len(participants),
-            'created_at': r['created_at']
+            'created_at': r['created_at'],
         })
 
     return jsonify({'success': True, 'data': room_list})
@@ -643,11 +691,11 @@ def create_playlist_room(room):
         if not pl:
             return jsonify({'error': '플레이리스트를 찾을 수 없습니다.'}), 404
 
-        songs = json.loads(pl['songs'])
+        songs = unpack_songs(pl['songs'])
         if not songs:
             return jsonify({'error': '수록곡이 비어있는 플레이리스트입니다.'}), 400
 
-        first_track = songs
+        first_track = songs[0]
         first_video_id = first_track.get('video_id') if isinstance(first_track, dict) else None
         room_title = title if (1 <= len(title) <= 50) else f"{session['nickname']}님의 함께 듣기 방"
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -669,13 +717,12 @@ def create_playlist_room(room):
             'room_id': new_room_id,
             'title': room_title,
             'playlist_id': playlist_id,
-            'is_host': True
-        }
+            'is_host': True,
+        },
     }), 201
 
 
 # 방 상세 정보, 대기열, 참여자 목록 및 시간 동기화
-
 
 def compute_synchronized_position(current_pos, is_playing, synced_at_iso, duration=0):
     """서버 기준 시각과 현재 시각의 차이를 합산해 실시간 재생 위치(초) 산출"""
@@ -711,7 +758,7 @@ def get_playlist_room_detail(room_id):
     if not r or r['status'] == 'CLOSED':
         return jsonify({'error': '존재하지 않거나 종료된 방입니다.'}), 404
 
-    songs = json.loads(r['songs'])
+    songs = unpack_songs(r['songs'])
     cur_idx = r['current_track_index']
     cur_track = songs[cur_idx] if 0 <= cur_idx < len(songs) else None
     duration = cur_track.get('duration', 0) if isinstance(cur_track, dict) else 0
@@ -721,7 +768,7 @@ def get_playlist_room_detail(room_id):
         r['current_position_sec'],
         r['is_playing'],
         r['synced_at'],
-        duration
+        duration,
     )
 
     # 현재 곡 이후의 재생 예정 목록 (대기열)
@@ -742,24 +789,24 @@ def get_playlist_room_detail(room_id):
                 'user_pk': r['host_id'],
                 'user_id': r['host_user_id'],
                 'nickname': r['host_nickname'],
-                'member_id': library.member_id(r['host_user_id'])
+                'member_id': library.member_id(r['host_user_id']),
             },
             'playback': {
                 'current_track_index': cur_idx,
                 'current_track': cur_track,
                 'current_position_sec': realtime_sec,
                 'is_playing': bool(r['is_playing']),
-                'synced_at': r['synced_at']
+                'synced_at': r['synced_at'],
             },
             'upcoming_tracks': upcoming_tracks,
             'all_tracks_count': len(songs),
             'participant_count': len(participants),
-            'participants': participants
-        }
+            'participants': participants,
+        },
     })
 
 
-# 호스트 전용 재생 제어 및 방 종료 
+# 호스트 전용 재생 제어 및 방 종료
 
 @app.post('/api/playlist-rooms/<int:room_id>/control')
 def control_playlist_room(room_id):
@@ -777,7 +824,9 @@ def control_playlist_room(room_id):
             return jsonify({'error': '호스트만 재생을 제어할 수 있습니다.'}), 403
 
         pl = db.execute("SELECT songs FROM playlists WHERE id = ?", (r['playlist_id'],)).fetchone()
-        songs = json.loads(pl['songs'])
+        songs = unpack_songs(pl['songs']) if pl else []
+        if not songs:
+            return jsonify({'error': '수록곡이 비어있는 플레이리스트입니다.'}), 400
 
         data = body()
         action = data.get('action')
@@ -787,34 +836,37 @@ def control_playlist_room(room_id):
         cur_pos = r['current_position_sec']
         is_playing = r['is_playing']
 
-        if action == 'play':
-            is_playing = 1
-            if 'position_sec' in data:
-                cur_pos = float(data['position_sec'])
-        elif action == 'pause':
-            is_playing = 0
-            if 'position_sec' in data:
-                cur_pos = float(data['position_sec'])
-        elif action == 'seek':
-            cur_pos = max(0.0, float(data.get('position_sec', 0.0)))
-        elif action == 'change_track':
-            new_idx = int(data.get('track_index', 0))
-            if 0 <= new_idx < len(songs):
-                cur_idx = new_idx
-                cur_pos = 0.0
+        try:
+            if action == 'play':
                 is_playing = 1
-        elif action == 'next_track':
-            if cur_idx + 1 < len(songs):
-                cur_idx += 1
-                cur_pos = 0.0
-                is_playing = 1
-        elif action == 'prev_track':
-            if cur_idx - 1 >= 0:
-                cur_idx -= 1
-                cur_pos = 0.0
-                is_playing = 1
-        else:
-            raise library.ValidationError('올바른 제어 액션을 지정해주세요.')
+                if 'position_sec' in data:
+                    cur_pos = max(0.0, float(data['position_sec']))
+            elif action == 'pause':
+                is_playing = 0
+                if 'position_sec' in data:
+                    cur_pos = max(0.0, float(data['position_sec']))
+            elif action == 'seek':
+                cur_pos = max(0.0, float(data.get('position_sec', 0.0)))
+            elif action == 'change_track':
+                new_idx = int(data.get('track_index', 0))
+                if 0 <= new_idx < len(songs):
+                    cur_idx = new_idx
+                    cur_pos = 0.0
+                    is_playing = 1
+            elif action == 'next_track':
+                if cur_idx + 1 < len(songs):
+                    cur_idx += 1
+                    cur_pos = 0.0
+                    is_playing = 1
+            elif action == 'prev_track':
+                if cur_idx - 1 >= 0:
+                    cur_idx -= 1
+                    cur_pos = 0.0
+                    is_playing = 1
+            else:
+                raise library.ValidationError('올바른 제어 액션을 지정해주세요.')
+        except (TypeError, ValueError):
+            raise library.ValidationError('재생 위치 또는 트랙 번호가 올바르지 않습니다.')
 
         new_video_id = songs[cur_idx].get('video_id') if isinstance(songs[cur_idx], dict) else None
 
@@ -833,7 +885,7 @@ def control_playlist_room(room_id):
         'current_position_sec': cur_pos,
         'is_playing': bool(is_playing),
         'synced_at': now_iso,
-        'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else []
+        'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else [],
     }
 
     # 방 접속 중인 모든 사용자에게 실시간 동기화 브로드캐스트
@@ -861,7 +913,7 @@ def close_playlist_room(room_id):
     return jsonify({'success': True, 'message': '방이 성공적으로 종료되었습니다.'})
 
 
-#  방 내부 전용 채팅
+# 방 내부 전용 채팅
 
 @app.get('/api/playlist-rooms/<int:room_id>/messages')
 def get_room_messages(room_id):
@@ -870,24 +922,7 @@ def get_room_messages(room_id):
         return auth_error()
 
     with connect_db() as db:
-        rows = db.execute("""
-            SELECT id, room_id, user_id, nickname, text, created_at
-            FROM room_messages
-            WHERE room_id = ?
-            ORDER BY id DESC
-            LIMIT 100
-        """, (room_id,)).fetchall()
-
-    return jsonify([
-        {
-            'id': r['id'],
-            'member_id': library.member_id(r['user_id']),
-            'user': r['nickname'],
-            'text': r['text'],
-            'created_at': r['created_at']
-        }
-        for r in reversed(rows)
-    ])
+        return jsonify(get_room_chat_history(db, room_id))
 
 
 @app.post('/api/playlist-rooms/<int:room_id>/messages')
@@ -902,6 +937,10 @@ def send_room_message(room_id):
 
     now_iso = datetime.now(timezone.utc).isoformat()
     with connect_db() as db:
+        room_row = db.execute("SELECT status FROM playlist_rooms WHERE id = ?", (room_id,)).fetchone()
+        if not room_row or room_row['status'] == 'CLOSED':
+            return jsonify({'error': '존재하지 않거나 종료된 방입니다.'}), 404
+
         cur = db.execute("""
             INSERT INTO room_messages (room_id, user_id, nickname, text, created_at)
             VALUES (?, ?, ?, ?, ?)
@@ -914,7 +953,7 @@ def send_room_message(room_id):
         'member_id': library.member_id(session['user_id']),
         'user': session['nickname'],
         'text': text,
-        'created_at': now_iso
+        'created_at': now_iso,
     }
 
     # 방 내부 참여자에게만 실시간 푸시
@@ -922,43 +961,41 @@ def send_room_message(room_id):
     return jsonify(msg_payload), 201
 
 
-
-# 방 실시간 SSE 스트림 & 퇴장 
-
+# 방 실시간 SSE 스트림 & 퇴장
 
 @app.get('/api/playlist-rooms/<int:room_id>/events')
 def playlist_room_events(room_id):
     """방 접속자용 전용 SSE 스트림 (스냅샷, 동기화, 방채팅, 참여자 변동 수신)"""
     if not session.get('user_pk'):
         return auth_error()
-
     token = request.args.get('connection', '')
     if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):
         raise library.ValidationError('연결 식별자가 올바르지 않습니다.')
 
     with connect_db() as db:
-        r = db.execute("""
+        r = db.execute(
+            """
             SELECT pr.*, u.nickname AS host_nickname, u.user_id AS host_user_id,
                    p.title AS playlist_title, p.songs
             FROM playlist_rooms pr
             JOIN users u ON pr.host_id = u.id
             JOIN playlists p ON pr.playlist_id = p.id
             WHERE pr.id = ?
-        """, (room_id,)).fetchone()
+            """,
+            (room_id,),
+        ).fetchone()
+        if not r or r['status'] == 'CLOSED':
+            return jsonify({'error': '방을 찾을 수 없습니다.'}), 404
 
-    if not r or r['status'] == 'CLOSED':
-        return jsonify({'error': '방을 찾을 수 없습니다.'}), 404
+        # 방 내부 최근 채팅 100건 조회하여 스냅샷에 포함
+        room_chat_list = get_room_chat_history(db, room_id)
 
-    songs = json.loads(r['songs'])
+    songs = unpack_songs(r['songs'])
     cur_idx = r['current_track_index']
     cur_track = songs[cur_idx] if 0 <= cur_idx < len(songs) else None
     duration = cur_track.get('duration', 0) if isinstance(cur_track, dict) else 0
-
     realtime_sec = compute_synchronized_position(
-        r['current_position_sec'],
-        r['is_playing'],
-        r['synced_at'],
-        duration
+        r['current_position_sec'], r['is_playing'], r['synced_at'], duration
     )
 
     user_id = session['user_id']
@@ -968,7 +1005,7 @@ def playlist_room_events(room_id):
 
     connection = hub.playlist_room_join(room_id, token, user_id, nickname, session_id)
 
-    # 방 입장 즉시 1회 전송되는 스냅샷
+    # 방 입장 즉시 1회 전송되는 스냅샷 (최근 대화 100건 messages 필드 포함)
     snapshot = {
         'room_id': room_id,
         'title': r['title'],
@@ -978,11 +1015,12 @@ def playlist_room_events(room_id):
             'current_track': cur_track,
             'current_position_sec': realtime_sec,
             'is_playing': bool(r['is_playing']),
-            'synced_at': r['synced_at']
+            'synced_at': r['synced_at'],
         },
         'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else [],
         'participants': hub.playlist_room_participants(room_id),
-        'self': member
+        'messages': room_chat_list,
+        'self': member,
     }
 
     @stream_with_context
@@ -1006,7 +1044,7 @@ def playlist_room_events(room_id):
     return Response(
         stream(),
         mimetype='text/event-stream',
-        headers={'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no'}
+        headers={'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no'},
     )
 
 
@@ -1019,6 +1057,7 @@ def leave_playlist_room(room_id):
     if token:
         hub.playlist_room_leave(room_id, token)
     return jsonify({'ok': True})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True, debug=os.environ.get('FLASK_DEBUG') == '1')
