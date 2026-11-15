@@ -1,6 +1,6 @@
 import { YoutubeImporter } from "./js/youtube-import.js";
 import { api, RoomConnection } from "./js/api.js";
-import { el, renderPlayer } from "./js/playlist-ui.js";
+import { el, renderPlayer, trackList } from "./js/playlist-ui.js";
 const $ = (id) => document.getElementById(id);
 const importer = new YoutubeImporter({ dialog: "create-dialog", prefix: "create-import", songs: "playlist-songs", title: "playlist-title", submit: "create-submit" });
 let currentRoom = null;
@@ -22,6 +22,43 @@ const CHAT_MAXLENGTH = $("chat-input").maxLength;
 const AI_PLACEHOLDER = "듣고 싶은 분위기 (비워두면 비슷한 곡 추천)";
 const AI_MAX_REQUEST = 100;
 const AI_TIMEOUT_MS = 300000; // the LLM and YouTube lookups can be slow; the server has its own limits
+let listeningParticipants = [];
+let listeningPlaylist = null;
+let playbackActive = false;
+let listeningRequest = Promise.resolve();
+
+function reportListening() {
+    if (!connected || !currentRoom) return;
+    const room = currentRoom, token = connection.token;
+    const playlist_id = playbackActive ? selectedPlaylist : null;
+    listeningRequest = listeningRequest.catch(() => {}).then(async () => {
+        if (room !== currentRoom || token !== connection.token || !connected) return;
+        try { await api(`/api/rooms/${room}/listening`, "POST", { connection: token, playlist_id }); }
+        catch (error) { if (room === currentRoom && token === connection.token) $("listening-count").textContent = "청취 인원을 확인하지 못했어요."; }
+    });
+}
+function updateListeningPanel() {
+    const audio = $("player").querySelector("audio");
+    $("listening-title").textContent = listeningPlaylist?.title || "음악을 골라보세요";
+    $("listening-state").textContent = !listeningPlaylist ? "플레이리스트를 선택하면 여기에 표시됩니다." : playbackActive ? "지금 재생 중 · " + listeningPlaylist.user : "재생 대기 · 곡을 선택해 재생하세요.";
+    document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
+    $("listening-mute").disabled = !audio;
+    $("listening-mute").setAttribute("aria-pressed", String(Boolean(audio?.muted)));
+    $("listening-mute").textContent = audio?.muted ? "음소거 해제" : "음소거";
+    $("listening-tracks-toggle").disabled = !listeningPlaylist;
+    $("listening-tracks-toggle").textContent = listeningPlaylist ? `곡 목록 · ${listeningPlaylist.songs.length}` : "곡 목록";
+    const count = listeningParticipants.filter((person) => person.listening?.includes(selectedPlaylist)).length;
+    $("listening-count").textContent = connected ? `함께 듣는 사람 ${count}명` : "청취 인원 · 연결 대기";
+}
+function resetListening() {
+    listeningPlaylist = null;
+    playbackActive = false;
+    $("listening-tracks").replaceChildren();
+    $("listening-tracks").classList.add("hidden");
+    $("listening-tracks-toggle").setAttribute("aria-expanded", "false");
+    updateListeningPanel();
+    reportListening();
+}
 
 function feedback(error) { $("page-feedback").textContent = error.message; }
 function updateStatus(status) {
@@ -32,6 +69,8 @@ function updateStatus(status) {
     $("chat-form").querySelector('[type="submit"]').disabled = !connected || aiBusy;
     if (!aiBusy) $("ai-recommend-btn").disabled = !connected;
     if (!connected) {
+        listeningParticipants = [];
+        updateListeningPanel();
         $("participant-list").replaceChildren(el("p", "muted", "실시간 연결을 확인하고 있어요."));
         $("participant-count").textContent = "—";
     }
@@ -47,6 +86,7 @@ const connection = new RoomConnection((kind, data) => {
         if (!data.messages.length) $("chat-messages").append(el("p", "muted chat-empty", "첫 인사를 건네보세요. 이 라운지의 대화가 여기 쌓입니다."));
         renderParticipants(data.participants);
         renderPlaylists();
+        reportListening();
         scrollChat();
     } else if (kind === "presence") {
         renderParticipants(data.participants);
@@ -65,7 +105,7 @@ async function loadRooms() {
             const card = el("button", "room-card");
             card.type = "button";
             card.dataset.room = id;
-            card.append(el("div", "room-icon", room.emoji), el("h3", "", room.name), el("p", "", "함께 듣는 공간으로 →"));
+            card.append( el("h3", "", room.name), el("p", "", "함께 듣는 공간으로 →"));
             card.addEventListener("click", () => enterRoom(id, room.name));
             $("room-cards").append(card);
         });
@@ -75,6 +115,8 @@ function enterRoom(room, name) {
     if (document.body.dataset.authenticated !== "true") { window.location.assign("/login"); return; }
     currentRoom = room;
     selectedMember = selectedPlaylist = null;
+    listeningParticipants = [];
+    resetListening();
     roomPlaylists = [];
     document.body.dataset.room = room;
     $("selection").classList.add("hidden");
@@ -99,6 +141,8 @@ function leaveRoom() {
     refreshId++;
     roomPlaylists = [];
     selectedMember = selectedPlaylist = null;
+    listeningParticipants = [];
+    resetListening();
     delete document.body.dataset.room;
     $("lounge").classList.add("hidden");
     $("selection").classList.remove("hidden");
@@ -106,6 +150,8 @@ function leaveRoom() {
     updateStatus("offline");
 }
 function renderParticipants(participants) {
+    listeningParticipants = participants;
+    updateListeningPanel();
     const selected = participants.find((person) => person.member_id === selectedMember);
     if (selected) $("playlist-heading").textContent = `${selected.nickname}님의 음악`;
     $("participant-count").textContent = `${participants.length}명`;
@@ -126,7 +172,7 @@ function renderParticipants(participants) {
         $("participant-list").append(button);
     });
 }
-function clearPlayer() { selectedPlaylist = null; $("player").replaceChildren(el("p", "", "♫ 목록에서 플레이리스트를 선택해주세요.")); }
+function clearPlayer() { selectedPlaylist = null; $("player").replaceChildren(el("p", "", "♫ 목록에서 플레이리스트를 선택해주세요.")); resetListening(); }
 async function refreshPlaylists() {
     const room = currentRoom;
     const version = ++refreshId;
@@ -138,9 +184,14 @@ async function refreshPlaylists() {
     } catch (error) { feedback(error); }
 }
 function showPlaylist(playlist) {
+    playbackActive = false;
     selectedPlaylist = playlist.id;
+    listeningPlaylist = playlist;
     playerVersion = JSON.stringify([playlist.title, playlist.songs, playlist.user]);
     renderPlayer($("player"), playlist);
+    $("listening-tracks").replaceChildren(trackList(playlist.songs));
+    updateListeningPanel();
+    reportListening();
 }
 function renderPlaylists() {
     const visible = selectedMember ? roomPlaylists.filter((p) => p.member_id === selectedMember) : roomPlaylists;
@@ -349,6 +400,7 @@ $("ai-save-btn").addEventListener("click", async () => {
         const playlist = await api("/api/me/playlists", "POST", { title, songs, room: currentRoom });
         $("ai-save-feedback").textContent = `‘${playlist.title}’으로 저장했어요. 아래 플레이어에서 바로 들을 수 있어요. 라운지 공유는 ‘내 플레이리스트 공유’에서 할 수 있어요.`;
         selectedPlaylist = null; // not shared to the room, so a room refresh must not clear it
+        resetListening(); // a private playlist is not counted as "listening together" in the lounge
         renderPlayer($("player"), playlist);
     } catch (error) {
         $("ai-save-feedback").textContent = error.message;
@@ -397,6 +449,21 @@ $("share-btn").addEventListener("click", async () => {
     try { await renderShareList(); } catch (error) { $("share-feedback").textContent = error.message; }
 });
 $("share-close").addEventListener("click", () => $("share-dialog").close());
+$("player").addEventListener("playback-state", (event) => {
+    if (!currentRoom || event.detail.playlist.id !== selectedPlaylist) return;
+    const changed = playbackActive !== event.detail.playing;
+    playbackActive = event.detail.playing;
+    updateListeningPanel();
+    if (changed) reportListening();
+});
+$("listening-mute").addEventListener("click", () => {
+    const audio = $("player").querySelector("audio");
+    if (audio) { audio.muted = !audio.muted; updateListeningPanel(); }
+});
+$("listening-tracks-toggle").addEventListener("click", () => {
+    const open = $("listening-tracks").classList.toggle("hidden") === false;
+    $("listening-tracks-toggle").setAttribute("aria-expanded", String(open));
+});
 window.addEventListener("pagehide", () => connection.leave());
 window.addEventListener("pageshow", (event) => { if (event.persisted && currentRoom) connection.join(currentRoom); });
 loadRooms();

@@ -16,7 +16,10 @@ class RoomHub:
             for c in self.connections.values():
                 if c['room'] == room:
                     key = member_id(c['user_id'])
-                    users[key] = {'member_id': key, 'nickname': c['nickname']}
+                    person = users.setdefault(key, {'member_id': key, 'nickname': c['nickname'], 'listening': []})
+                    playlist = c.get('listening')
+                    if playlist is not None and playlist not in person['listening']:
+                        person['listening'].append(playlist)
             return sorted(users.values(), key=lambda p: p['nickname'])
 
     def publish(self, room, kind, data):
@@ -32,6 +35,16 @@ class RoomHub:
     def presence(self, room):
         users = self.participants(room)
         self.publish(room, 'presence', {'room': room, 'participants': users, 'count': len(users)})
+
+    def listening(self, token, room, session_id, playlist):
+        with self.lock:
+            c = self.connections.get(token)
+            if not c or c['room'] != room or c['session_id'] != session_id:
+                return False
+            if c.get('listening') != playlist:
+                c['listening'] = playlist
+                self.presence(room)
+            return True
 
     def add(self, token, room, user_id, nickname, session_id):
         with self.lock:
