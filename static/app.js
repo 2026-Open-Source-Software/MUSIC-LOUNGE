@@ -33,9 +33,11 @@ function updateListeningPanel() {
     $("listening-state").textContent = !listeningPlaylist ? "플레이리스트를 선택하면 여기에 표시됩니다." : playbackActive ? "지금 재생 중 · " + listeningPlaylist.user : "재생 대기 · 곡을 선택해 재생하세요.";
     document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
     updateListeningControls();
-
+    $("playlist-chat-title").textContent = listeningPlaylist?.title || "플레이리스트를 선택해주세요";
+    $("playlist-chat-description").textContent = listeningPlaylist ? "같은 음악을 듣는 사람들을 위한 채팅 공간입니다." : "플레이리스트를 선택하면 개별 라운지를 확인할 수 있어요.";
 }
 function resetListening() {
+    selectChatTab("main-chat-tab");
     listeningPlaylist = null;
     playbackActive = false;
     updateListeningPanel();
@@ -43,6 +45,26 @@ function resetListening() {
 }
 
 function feedback(error) { $("page-feedback").textContent = error.message; }
+function selectChatTab(id) {
+    ["main-chat-tab", "playlist-chat-tab"].forEach((tabId) => {
+        const tab = $(tabId);
+        const active = tabId === id;
+        tab.setAttribute("aria-selected", String(active));
+        tab.tabIndex = active ? 0 : -1;
+        $(tab.getAttribute("aria-controls")).hidden = !active;
+    });
+}
+const chatTabs = [$("main-chat-tab"), $("playlist-chat-tab")];
+chatTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectChatTab(tab.id));
+    tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index;
+        selectChatTab(chatTabs[next].id);
+        chatTabs[next].focus();
+    });
+});
 function updateStatus(status) {
     connected = status === "connected";
     $("connection-status").textContent = { connecting: "연결 중…", connected: "● 실시간 연결", reconnecting: "재연결 중…", offline: "연결 대기" }[status];
@@ -232,14 +254,32 @@ function appendMessage(message, history = false) {
     const box = $("chat-messages");
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
     box.querySelector(".chat-empty")?.remove();
+    const sentAt = new Date(message.created_at);
+    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(sentAt);
+    const previousMessage = box.querySelector(".message:last-of-type");
+    if (previousMessage?.dataset.day !== day) {
+        const divider = el("div", "chat-date-divider");
+        const date = el("time", "", sentAt.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", weekday: "long" }));
+        date.dateTime = day;
+        divider.append(date);
+        box.append(divider);
+    }
     const item = el("div", `message${message.member_id === self ? " own-message" : ""}`);
+    item.dataset.day = day;
     const meta = el("div", "message-meta");
-    const time = el("time", "muted", new Date(message.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+    const time = el("time", "muted", sentAt.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }));
     time.dateTime = message.created_at;
     meta.append(el("strong", "", message.user), time);
     item.append(meta, el("p", "", message.text));
     box.append(item);
-    if (box.children.length > 100) box.firstElementChild.remove();
+    const messages = box.querySelectorAll(".message");
+    if (messages.length > 100) {
+        const oldest = messages[0];
+        const divider = oldest.previousElementSibling;
+        const next = oldest.nextElementSibling;
+        oldest.remove();
+        if (divider?.classList.contains("chat-date-divider") && (!next || next.classList.contains("chat-date-divider"))) divider.remove();
+    }
     if (!history && (nearBottom || message.member_id === self)) scrollChat();
 }
 $("chat-form").addEventListener("submit", async (event) => {
