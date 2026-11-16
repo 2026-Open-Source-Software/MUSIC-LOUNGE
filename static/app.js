@@ -1,6 +1,6 @@
 import { YoutubeImporter } from "./js/youtube-import.js";
 import { api, RoomConnection } from "./js/api.js";
-import { el, renderPlayer, trackList } from "./js/playlist-ui.js";
+import { el, renderPlayer } from "./js/playlist-ui.js";
 const $ = (id) => document.getElementById(id);
 const importer = new YoutubeImporter({ dialog: "create-dialog", prefix: "create-import", songs: "playlist-songs", title: "playlist-title", submit: "create-submit" });
 let currentRoom = null;
@@ -24,7 +24,7 @@ function reportListening() {
     listeningRequest = listeningRequest.catch(() => {}).then(async () => {
         if (room !== currentRoom || token !== connection.token || !connected) return;
         try { await api(`/api/rooms/${room}/listening`, "POST", { connection: token, playlist_id }); }
-        catch (error) { if (room === currentRoom && token === connection.token) $("listening-count").textContent = "청취 인원을 확인하지 못했어요."; }
+        catch (error) { /* Retry presence reporting on the next playback update. */ }
     });
 }
 function updateListeningPanel() {
@@ -32,20 +32,12 @@ function updateListeningPanel() {
     $("listening-title").textContent = listeningPlaylist?.title || "음악을 골라보세요";
     $("listening-state").textContent = !listeningPlaylist ? "플레이리스트를 선택하면 여기에 표시됩니다." : playbackActive ? "지금 재생 중 · " + listeningPlaylist.user : "재생 대기 · 곡을 선택해 재생하세요.";
     document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
-    $("listening-mute").disabled = !audio;
-    $("listening-mute").setAttribute("aria-pressed", String(Boolean(audio?.muted)));
-    $("listening-mute").textContent = audio?.muted ? "음소거 해제" : "음소거";
-    $("listening-tracks-toggle").disabled = !listeningPlaylist;
-    $("listening-tracks-toggle").textContent = listeningPlaylist ? `곡 목록 · ${listeningPlaylist.songs.length}` : "곡 목록";
-    const count = listeningParticipants.filter((person) => person.listening?.includes(selectedPlaylist)).length;
-    $("listening-count").textContent = connected ? `함께 듣는 사람 ${count}명` : "청취 인원 · 연결 대기";
+    updateListeningControls();
+
 }
 function resetListening() {
     listeningPlaylist = null;
     playbackActive = false;
-    $("listening-tracks").replaceChildren();
-    $("listening-tracks").classList.add("hidden");
-    $("listening-tracks-toggle").setAttribute("aria-expanded", "false");
     updateListeningPanel();
     reportListening();
 }
@@ -174,7 +166,6 @@ function showPlaylist(playlist) {
     listeningPlaylist = playlist;
     playerVersion = JSON.stringify([playlist.title, playlist.songs, playlist.user]);
     renderPlayer($("player"), playlist);
-    $("listening-tracks").replaceChildren(trackList(playlist.songs));
     updateListeningPanel();
     reportListening();
 }
@@ -317,13 +308,41 @@ $("player").addEventListener("playback-state", (event) => {
     updateListeningPanel();
     if (changed) reportListening();
 });
-$("listening-mute").addEventListener("click", () => {
+function formatPlaybackTime(value) {
+    const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function updateListeningControls() {
     const audio = $("player").querySelector("audio");
-    if (audio) { audio.muted = !audio.muted; updateListeningPanel(); }
+    const ready = Boolean(audio?.getAttribute("src"));
+    const duration = Number.isFinite(audio?.duration) ? audio.duration : 0;
+    $("listening-play").disabled = !ready;
+    $("listening-play").textContent = audio && !audio.paused ? "\u275a\u275a" : "\u25b6";
+    $("listening-play").setAttribute("aria-label", audio && !audio.paused ? "\uc77c\uc2dc \uc815\uc9c0" : "\uc7ac\uc0dd");
+    $("listening-time").textContent = formatPlaybackTime(audio?.currentTime);
+    $("listening-duration").textContent = formatPlaybackTime(duration);
+    $("listening-seek").max = duration;
+    $("listening-seek").value = audio?.currentTime || 0;
+    $("listening-seek").disabled = !ready || !duration;
+    $("listening-volume").disabled = !audio;
+    $("listening-volume").value = audio?.muted ? 0 : audio?.volume ?? 1;
+}
+["timeupdate", "durationchange", "loadedmetadata", "emptied", "play", "pause", "ended", "volumechange"].forEach((type) => {
+    $("player").addEventListener(type, updateListeningControls, true);
 });
-$("listening-tracks-toggle").addEventListener("click", () => {
-    const open = $("listening-tracks").classList.toggle("hidden") === false;
-    $("listening-tracks-toggle").setAttribute("aria-expanded", String(open));
+$("listening-play").addEventListener("click", async () => {
+    const audio = $("player").querySelector("audio");
+    if (!audio) return;
+    if (audio.paused) { try { await audio.play(); } catch (error) { feedback(error); } }
+    else audio.pause();
+});
+$("listening-seek").addEventListener("input", (event) => {
+    const audio = $("player").querySelector("audio");
+    if (audio && Number.isFinite(audio.duration)) audio.currentTime = Number(event.target.value);
+});
+$("listening-volume").addEventListener("input", (event) => {
+    const audio = $("player").querySelector("audio");
+    if (audio) { audio.muted = false; audio.volume = Number(event.target.value); }
 });
 window.addEventListener("pagehide", () => connection.leave());
 window.addEventListener("pageshow", (event) => { if (event.persisted && currentRoom) connection.join(currentRoom); });

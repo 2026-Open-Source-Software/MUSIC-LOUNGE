@@ -6,14 +6,30 @@
 .mini-record span { width: 43px; height: 43px; display: grid; place-items: center; border: 5px solid #b6c99f; border-radius: 50%; background: #cadab7; color: #24321c; font-size: 11px; font-weight: 800; }
 .listening-panel h3 { margin: 0 0 8px; font-size: 17px; overflow-wrap: anywhere; }
 .listening-panel #listening-state { font-size: 11px; line-height: 1.7; margin: 0; }
-.listening-count { font-size: 12px; color: #c3d9af; margin: 14px 0; }
-.listening-controls { display: flex; flex-wrap: wrap; gap: 7px; }
-.lounge-home[data-room] .listening-controls .secondary { font-size: 11px; padding: 8px 12px; }
-.listening-controls button:disabled { cursor: default; opacity: .45; }
-.listening-controls [aria-pressed="true"], .listening-controls [aria-expanded="true"] { box-shadow: inset 0 0 0 1px #c3d9af88; }
-#listening-tracks { max-height: 260px; overflow-y: auto; margin-top: 16px; border-top: 1px solid #ffffff14; scrollbar-width: thin; }
-#listening-tracks .track-list { padding-left: 20px; margin: 8px 0; font-size: 12px; }
-#listening-tracks .track-row { padding: 8px 0; }
+.listening-heading-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.listening-heading-row .eyebrow { min-width: 0; }
+.listening-audience { flex-shrink: 0; }
+.listening-audience summary { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 40px; padding: 5px 8px; border: 1px solid #c3d9af26; border-radius: 999px; color: #c3d9af; background: #c3d9af0a; font-size: 11px; line-height: 1; cursor: pointer; list-style: none; }
+.listening-audience summary::-webkit-details-marker { display: none; }
+.listening-audience summary:hover, .listening-audience[open] summary { background: #c3d9af1a; border-color: #c3d9af55; }
+.listening-audience summary:focus-visible { outline: 2px solid #c3d9af; outline-offset: 3px; }
+.listening-audience-menu { position: absolute; z-index: 3; top: calc(100% + 10px); left: 0; right: 0; padding: 14px; border: 1px solid #ffffff1a; border-radius: 14px; background: #252c24; box-shadow: 0 8px 24px #0006; }
+.listening-audience-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.listening-audience-heading > span { color: #a4ada0; font-size: 10px; font-weight: 400; }
+.listening-audience-menu ul { display: grid; gap: 12px; max-height: 180px; overflow-y: auto; list-style: none; padding: 0; margin: 14px 0 0; }
+.listening-audience-menu li { display: flex; align-items: center; gap: 9px; min-width: 0; color: #eef1e9; font-size: 12px; }
+.listening-audience-menu li > span:last-child { overflow-wrap: anywhere; }
+.listener-avatar { display: grid; place-items: center; flex: 0 0 26px; height: 26px; border-radius: 50%; background: #c3d9af1a; color: #c3d9af; font-size: 11px; }
+.listening-player { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-top: 16px; color: #eef1e9; font-size: 11px; font-variant-numeric: tabular-nums; }
+.listening-player > button { padding: 0; border: 0; background: transparent; color: inherit; min-width: 20px; cursor: pointer; }
+.listening-player input[type="range"] { padding: 0; margin: 0; accent-color: #91b8dc; height: 16px; cursor: pointer; }
+#listening-seek { flex: 1; width: 0; min-width: 24px; }
+.listening-player :disabled { opacity: .4; cursor: default; }
+.listening-volume { position: relative; flex: 0 0 20px; }
+.listening-volume summary { display: flex; cursor: pointer; list-style: none; }
+.listening-volume summary::-webkit-details-marker { display: none; }
+.listening-volume label { position: absolute; z-index: 2; right: -8px; bottom: 30px; display: grid; justify-items: center; gap: 10px; width: 36px; padding: 12px 6px; background: #282b28; border: 1px solid #ffffff24; border-radius: 8px; box-shadow: 0 4px 12px #0008; }
+#listening-volume { writing-mode: vertical-lr; direction: rtl; width: 16px; height: 100px; }
 @keyframes listening-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mini-record { animation: none; } .mini-record.is-playing { box-shadow: 0 0 0 3px #c3d9af40; } }
 @media (min-width: 401px) and (max-width: 700px) { .lounge-home[data-room] .listening-panel { grid-column: 1 / -1; } }

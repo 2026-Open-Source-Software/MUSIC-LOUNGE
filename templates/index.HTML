@@ -60,13 +60,23 @@
         <div class="lounge-grid">
             <div class="lounge-sidebar">
                 <aside class="panel listening-panel" aria-labelledby="listening-heading">
-                    <div class="eyebrow" id="listening-heading">NOW LISTENING</div>
+                    <div class="listening-heading-row">
+                        <div class="eyebrow" id="listening-heading">NOW LISTENING</div>
+                        <details class="listening-audience">
+                            <summary aria-label="청취자 목록 보기"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>—</span></summary>
+                            <div class="listening-audience-menu"><div class="listening-audience-heading"><strong>함께 듣는 사람</strong></div><ul aria-label="청취자 목록"></ul></div>
+                        </details>
+                    </div>
                     <div class="listening-art" aria-hidden="true"><div class="mini-record"><span>ML</span></div></div>
                     <h3 id="listening-title">음악을 골라보세요</h3>
                     <p id="listening-state" class="muted" role="status">플레이리스트를 선택하면 여기에 표시됩니다.</p>
-                    <p id="listening-count" class="listening-count" aria-live="polite">함께 듣는 사람 0명</p>
-                    <div class="listening-controls"><button id="listening-mute" class="secondary" type="button" aria-pressed="false" disabled>음소거</button><button id="listening-tracks-toggle" class="secondary" type="button" aria-expanded="false" aria-controls="listening-tracks" disabled>곡 목록</button></div>
-                    <div id="listening-tracks" class="hidden"></div>
+                    <div class="listening-player" role="group" aria-label="현재 곡 재생 조절">
+                        <button id="listening-play" type="button" aria-label="재생" disabled>▶</button>
+                        <span id="listening-time">0:00</span>
+                        <input id="listening-seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="재생 위치" disabled>
+                        <span id="listening-duration">0:00</span>
+                        <details class="listening-volume"><summary aria-label="음량 조절"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg></summary><label>음량<input id="listening-volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="음량" disabled></label></details>
+                    </div>
                 </aside>
                 <aside class="panel ranking" aria-labelledby="ranking-heading"><h3 class="panel-title" id="ranking-heading">TOP PLAYLISTS</h3><div id="ranking-list"></div></aside>
                 <aside class="panel participants" aria-labelledby="participants-heading">
