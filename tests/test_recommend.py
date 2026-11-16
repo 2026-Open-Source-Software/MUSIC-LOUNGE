@@ -18,7 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import app as lounge  # noqa: E402
 import playlist_service as library  # noqa: E402
 import recommend_service as rec  # noqa: E402
-from storage import connect_db  # noqa: E402
+from storage import connect_db, init_db  # noqa: E402
+
+
+def setUpModule():
+    # 여러 테스트 파일을 함께 실행해도 이 파일 전용 DB를 쓰도록 다시 지정합니다.
+    os.environ['MUSIC_LOUNGE_DB'] = str(Path(_tmp) / 'test.sqlite3')
+    init_db()
 
 
 def tearDownModule():

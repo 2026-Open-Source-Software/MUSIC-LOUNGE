@@ -6,13 +6,20 @@ from pathlib import Path
 
 _tmp = tempfile.TemporaryDirectory()
 os.environ['MUSIC_LOUNGE_DB'] = str(Path(_tmp.name) / 'test.sqlite3')
+os.environ.pop('DB_PATH', None)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app as web  # noqa: E402
 import playlist_service as library  # noqa: E402
-from storage import connect_db  # noqa: E402
+from storage import connect_db, init_db  # noqa: E402
 
 A, B, C, D = 'aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd'
+
+
+def setUpModule():
+    # 여러 테스트 파일을 함께 실행해도 이 파일 전용 DB를 쓰도록 다시 지정합니다.
+    os.environ['MUSIC_LOUNGE_DB'] = str(Path(_tmp.name) / 'test.sqlite3')
+    init_db()
 
 
 def song(video_id, title, artist=None):
@@ -113,6 +120,7 @@ class DiscoveryTest(unittest.TestCase):
         self.assertEqual(copied['shared_rooms'], [])
         self.assertEqual(copied['collected_from']['playlist_id'], self.private['id'])
         self.assertEqual(copied['collected_from']['nickname'], '밥')
+        self.assertEqual(copied['collected_from']['likes'], 0)
         self.assertNotIn('owner_pk', copied['collected_from'])
         self.assertEqual([s['video_id'] for s in copied['songs']], [A, B, D])
         mine = {p['id']: p for p in library.own_playlists(alice_pk)}

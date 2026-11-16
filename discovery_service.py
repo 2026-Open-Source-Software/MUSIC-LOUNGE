@@ -146,7 +146,7 @@ def collect_playlist(user_pk, nickname, playlist_id):
              for song in _tracks(source)]
     if not songs:
         raise library.ValidationError('수집할 수 있는 곡이 없는 플레이리스트입니다.')
-    return library.create_playlist(user_pk, nickname, {
+    copied = library.create_playlist(user_pk, nickname, {
         'title': source['title'][:60],
         'room': source['room'],
         'songs': songs[:100],
@@ -155,3 +155,5 @@ def collect_playlist(user_pk, nickname, playlist_id):
         'owner_pk': source['owner_pk'],
         'nickname': source['user'],
     })
+    copied['collected_from']['likes'] = source['likes']  # 목록 조회와 같은 형태로 원본 좋아요 수 포함
+    return copied

@@ -14,6 +14,7 @@
 - **실시간 소통**: SSE 기반 채팅·참여자·공유 목록 변경 알림, 계정별 참여 인원 및 선택한 플레이리스트의 청취 인원 표시
 - **YouTube 가져오기·재생**: 공개 영상·재생목록의 곡 정보 가져오기, MP3 준비·캐시·재생
 - **AI 노래 추천**: 내 플레이리스트 기반 비슷한 곡 추천, Ollama 기반 분위기 추천. 실존하는 곡만 표시하고 결과는 요청한 사람에게만 보임 ([AI 노래 추천](#ai-노래-추천))
+- **플레이리스트 찾기·수집**: 노래 제목이나 가수로 곡을 골라 그 곡들이 담긴 플레이리스트를 찾고, 마음에 드는 목록을 내 계정에 수집 ([플레이리스트 찾기·수집](#플레이리스트-찾기수집))
 
 프론트엔드는 Jinja 템플릿, 일반 JavaScript ES modules, CSS로 구성합니다. 별도의 Node.js 빌드 과정은 없습니다.
 
@@ -155,9 +156,21 @@ https://www.youtube.com/watch?v=M7lc1UVf-VE
 
 `watch`, `youtu.be`, `shorts`, `live`, `embed`, `music.youtube.com` 링크를 검증해 표준 영상 URL과 ID로 저장합니다. 곡 정보 가져오기는 HTTPS 링크를 받습니다. 이전 데이터의 텍스트 곡명은 보존하지만, 실제 오디오 재생에는 영상 정보가 필요합니다. 라운지의 기본 샘플 목록은 예시 데이터입니다.
 
-### 추가 개발 중인 기능
+### 플레이리스트 찾기·수집
 
-단일 입력창에 쉼표로 최대 3곡을 입력하고, 선택한 2~3곡이 함께 담긴 공유 목록을 찾는 UI는 [PR #18](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/18)로 분리했습니다. 해당 PR은 미병합 상태이며 추천 API는 후속 백엔드 작업이 필요합니다. 이 README 수정 PR에는 추천 기능의 코드·테스트를 포함하지 않으므로 현재 `develop`의 제공 기능이나 실행 조건에는 포함하지 않습니다.
+메인 화면의 **Find your perfect mix.** 영역에서 사용합니다. 로그인 없이 검색할 수 있고, 수집은 로그인이 필요합니다.
+
+1. 입력칸에 노래 제목이나 가수를 쉼표로 구분해 최대 3개 입력하고 **검색**을 누릅니다(예: `밤편지, 아이유, Hype Boy`).
+2. 검색어마다 DB의 플레이리스트에 담긴 곡 중 제목이나 가수에 검색어가 포함된 곡이 나옵니다(최대 10곡). 원하는 곡을 1~3개 선택합니다.
+3. **플레이리스트 찾기**를 누르면 선택한 곡이 모두 담긴 플레이리스트를 좋아요 순으로 보여줍니다(최대 30개). 카드에는 작성자 닉네임, 곡 수, 좋아요 수가 표시되고 **상세보기**로 전체 곡을 확인합니다.
+4. **수집하기**를 누르면 그 플레이리스트가 마이페이지의 **수집한 플레이리스트**에 복사됩니다. 라운지의 플레이리스트 카드에서도 같은 버튼으로 수집할 수 있습니다.
+
+- 같은 곡 여부는 YouTube 영상 ID로 판단합니다. 같은 노래라도 다른 영상을 담은 플레이리스트는 찾지 않습니다.
+- 곡의 가수 정보는 YouTube 채널명으로 저장됩니다. 가수로 검색할 때 영상 제목이나 채널명에 가수 이름이 없으면 검색되지 않을 수 있습니다.
+- 라운지 공유 여부와 관계없이 등록된 모든 플레이리스트를 검색합니다. 작성자는 닉네임만 표시합니다.
+- **수집한 플레이리스트**는 원본 정보를 기억해 원작자 닉네임과 원본의 좋아요 수를 표시합니다. 수정과 라운지 공유는 할 수 없고 삭제만 가능합니다. 마이페이지에서는 직접 만든 플레이리스트와 구분해 보여줍니다.
+- 수집한 플레이리스트는 검색 결과에서 제외하고, 같은 플레이리스트를 다시 수집하거나 내 플레이리스트를 수집할 수 없습니다. 복사본 때문에 같은 목록이 여러 번 검색되는 것을 막기 위한 규칙입니다.
+- 수집 버튼은 상태에 따라 **수집하기**, **수집함 ✓**, **내 플레이리스트**, **로그인하고 수집하기**로 표시되며, 라운지의 예시 목록(`sample_data.py`)은 DB에 없어 수집할 수 없습니다.
 
 ## 저장·실시간 통신·미디어 처리
 
@@ -169,7 +182,7 @@ https://www.youtube.com/watch?v=M7lc1UVf-VE
 | --- | --- |
 | `users` | 계정, 비밀번호 해시, 닉네임, 프로필, 권한·상태 |
 | `lounges` | 장르별 라운지 정보 |
-| `playlists` | 소유자, 제목, 곡·공유 라운지 JSON, 좋아요 수, 생성·수정 시각 |
+| `playlists` | 소유자, 제목, 곡·공유 라운지 JSON(수집한 목록은 원본 정보 `collected_from` 포함), 좋아요 수, 생성·수정 시각 |
 | `playlist_likes` | 계정별 좋아요 매핑 |
 | `messages` | 라운지별 최근 채팅 100개 |
 
@@ -201,8 +214,10 @@ MUSIC-LOUNGE/
 ├── audio_service.py             # 백그라운드 오디오 요청·캐시
 ├── sample_data.py               # 기본 라운지·샘플 목록
 ├── recommend_service.py         # AI 노래 추천: DB·YouTube 관련곡·Ollama, iTunes로 실존 확인
+├── discovery_service.py         # 플레이리스트 찾기·수집
 ├── tests/
-│   └── test_recommend.py        # AI 노래 추천 자동화 테스트
+│   ├── test_recommend.py        # AI 노래 추천 자동화 테스트
+│   └── test_discovery.py        # 플레이리스트 찾기·수집 자동화 테스트
 ├── templates/
 │   ├── index.HTML               # 메인·라운지 화면 (확장자 대문자)
 │   ├── login.html
@@ -211,7 +226,7 @@ MUSIC-LOUNGE/
 │   ├── app.js                   # 라운지 화면 동작
 │   ├── style.css                # 공통 스타일
 │   ├── css/                     # 홈·로그인·마이페이지·공통 화면 스타일
-│   ├── js/                      # API/SSE·플레이어·가져오기·계정 UI
+│   ├── js/                      # API/SSE·플레이어·가져오기·계정·플레이리스트 찾기·수집 UI
 │   └── backgrounds/             # 라운지 배경 이미지
 ├── ytdlp_server/
 │   ├── app.py                   # 추출·검색·관련곡·MP3 변환 API
@@ -229,7 +244,7 @@ MUSIC-LOUNGE/
 
 ## 주요 API
 
-웹 앱의 미디어·계정·라운지 변경 API는 로그인이 필요합니다.
+웹 앱의 미디어·계정·라운지 변경 API는 로그인이 필요합니다. 플레이리스트 찾기의 조회 API(`/api/discovery/songs`, `/api/discovery/playlists`)는 로그인 없이 사용할 수 있습니다.
 
 | 메서드 | 경로 | 기능 |
 | --- | --- | --- |
@@ -252,6 +267,9 @@ MUSIC-LOUNGE/
 | `POST` | `/api/rooms/<room>/listening` | `{connection, playlist_id}` 청취 목록 알림 |
 | `POST` | `/api/rooms/<room>/leave` | `{connection}` 연결 퇴장 |
 | `POST` | `/api/rooms/<room>/ai-recommend` | `{request?}` AI 노래 추천, 요청자에게만 응답 |
+| `GET` | `/api/discovery/songs?q=검색어` | DB에 담긴 곡을 제목·가수로 검색, 최대 10곡 |
+| `GET` | `/api/discovery/playlists?first=&second=&third=` | 선택한 1~3곡(영상 ID)이 모두 담긴 플레이리스트, 좋아요 순 최대 30개 |
+| `POST` | `/api/discovery/playlists/<id>/collect` | 플레이리스트를 수집한 플레이리스트로 복사 |
 
 미디어 서버는 `/health`, `/api/extract?url=…`, `/api/search?q=…&limit=…`, `/api/related?video_id=…`(YouTube 관련곡), `/api/stream?url=…`를 제공합니다. 미디어 서버의 검색은 YouTube 검색이며 웹 앱의 `/api/search`와 대상이 다릅니다.
 
@@ -319,7 +337,7 @@ Compose 설정 문법을 확인합니다.
 docker compose config --quiet
 ```
 
-AI 노래 추천의 자동화 테스트는 다음 명령으로 실행합니다. iTunes·YouTube·Ollama는 가짜 응답으로 대체하므로 네트워크 없이 실행됩니다.
+AI 노래 추천과 플레이리스트 찾기·수집의 자동화 테스트는 다음 명령으로 실행합니다. iTunes·YouTube·Ollama는 가짜 응답으로, DB는 임시 파일로 대체하므로 네트워크 없이 실행됩니다.
 
 ```sh
 python -m unittest discover -s tests -v
@@ -343,6 +361,7 @@ README는 PR의 계획 문구보다 **현재 파일에 구현된 동작**을 우
 | [#14](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/14) | SQLite 스키마 개선, lounges 조회, DB/API 문서 |
 | [#15](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/15) | 메인·로그인·마이페이지 UI 개편, 미사용 파일 정리 |
 | [#16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16) | AI 노래 추천, 미디어 서버 관련곡 API(`/api/related`), Ollama 컨테이너(모델 자동 다운로드, 선택형 GPU 설정), 추천 테스트 |
+| [#18](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/18) | 플레이리스트 찾기 화면 |
 
 함께 듣기 DB 확장 [PR #17](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/17)은 병합 없이 닫혀 있어 해당 PR의 추가 테이블을 현재 스키마로 기술하지 않습니다.
 
