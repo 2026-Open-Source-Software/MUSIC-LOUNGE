@@ -1,0 +1,58 @@
+/* Scoped to the right-hand hero feature; lounge UI stays independent. */
+.recommendation-art { display: flex; flex-direction: column; min-width: 0; padding-top: 8px; }
+.recommendation-art .vinyl { width: min(290px, 75%); margin-bottom: -80px; flex-shrink: 0; }
+.recommendation-art .art-orbit { top: 0; pointer-events: none; }
+.song-finder { position: relative; width: 100%; box-sizing: border-box; padding: 24px; border: 1px solid #dae4cc38; border-radius: 26px; background: linear-gradient(130deg, #293125f5, #191e1bf5); box-shadow: 0 18px 40px #0005; backdrop-filter: blur(22px); }
+.finder-eyebrow { color: #b8cda5; font-size: 9px; letter-spacing: 2px; }
+.song-finder h2 { font-size: 23px; color: #f3f4ee; margin: 8px 0; letter-spacing: -1px; }
+.lounge-home .hero .song-finder p { font-size: 12px; line-height: 1.6; margin: 6px 0 12px; }
+.song-slot { margin-top: 14px; }
+.song-slot label { display: block; font-size: 11px; color: #c5d6b8; margin-bottom: 6px; }
+.song-query { display: flex; gap: 7px; }
+.song-query input { width: 100%; min-width: 0; margin: 0; background: #111612; color: #f3f4ee; border: 1px solid #ffffff26; border-radius: 12px; padding: 11px; font-size: 12px; }
+.song-finder button { border: 1px solid #c3d9af44; border-radius: 10px; padding: 9px 12px; background: #ffffff08; color: #d7e6cb; cursor: pointer; font-size: 12px; }
+.song-search { flex-shrink: 0; }
+.song-options { list-style: none; padding: 0; margin: 0; max-height: 170px; overflow-y: auto; }
+.song-options button { width: 100%; text-align: left; margin-bottom: 4px; overflow-wrap: anywhere; }
+.song-options button:hover { background: #c3d9af20; }
+.song-options small { display: block; color: #a4aaa5; margin-top: 4px; }
+.song-finder #finder-submit { width: 100%; background: #c3d9af; color: #172016; font-weight: 700; margin-top: 12px; padding: 13px 8px; border-radius: 999px; }
+.song-finder #finder-submit:disabled { opacity: .4; cursor: default; }
+.lounge-home .hero .song-finder .finder-status { font-size: 11px; color: #bdcdb1; margin: 5px 0; overflow-wrap: anywhere; }
+#finder-results { max-height: 340px; overflow-y: auto; }
+.recommendation-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 16px 0; border-top: 1px solid #ffffff19; margin-top: 12px; }
+.recommendation-cover { width: 64px; height: 64px; position: relative; border-radius: 10px; background: #45513e; display: grid; place-items: center; color: #c3d9af; font-size: 26px; overflow: hidden; }
+.recommendation-cover img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+.recommendation-card h3 { margin: 0 0 5px; font-size: 14px; color: #eff3eb; overflow-wrap: anywhere; }
+.recommendation-card small { font-size: 11px; color: #9eaa98; }
+.recommendation-card ul { list-style: none; padding: 0; margin: 8px 0; font-size: 11px; line-height: 1.7; color: #c3d9af; overflow-wrap: anywhere; }
+#recommendation-detail { background: #1a211b; color: #eef3e9; border: 1px solid #c3d9af44; border-radius: 22px; width: min(540px, 90vw); max-height: 80vh; box-sizing: border-box; }
+#recommendation-detail li { margin: 12px 0; overflow-wrap: anywhere; }
+#recommendation-detail a { color: #c3d9af; }
+@media (max-width: 700px) { .recommendation-art { margin-top: 30px; } .song-finder { max-width: 460px; padding: 20px; } }
+
+/* Compact frequency header, echoing the original sound capsule. */
+.song-finder { border-radius: 28px; padding: 22px; background: linear-gradient(115deg, #30382bf5, #1b201cf5); }
+.finder-heading { display: flex; align-items: center; gap: 16px; padding: 2px 0 18px; border-bottom: 1px solid #ffffff12; }
+.song-finder .finder-heading h2 { font-size: clamp(17px, 1.8vw, 22px); font-weight: 500; letter-spacing: -.6px; margin: 0 0 5px; }
+.finder-heading small { color: #aeb7a9; font-size: 11px; }
+.finder-heading .sound-bars { flex-shrink: 0; gap: 4px; }
+.finder-arrow { margin-left: auto; font-size: 27px; color: #c5d5b8; }
+.song-slot label { font-size: 11px; font-weight: 400; }
+#finder-feedback:empty { display: none; }
+.song-finder #finder-submit { margin-top: 8px; padding: 11px 8px; }
+@media (max-width: 700px) { .song-finder .finder-heading h2 { font-size: 20px; } }
+
+/* Reference banner: song connection title with waveform and arrow. */
+.finder-heading { gap: 14px; align-items: center; }
+.finder-heading > div { min-width: 0; }
+.song-finder .finder-heading h2 { font-size: clamp(18px, 1.85vw, 25px); font-weight: 650; letter-spacing: -.7px; line-height: 1.25; margin-bottom: 8px; }
+.finder-heading small { display: block; font-size: 12px; line-height: 1.6; color: #a8b69f; word-break: keep-all; }
+.finder-heading .sound-bars { height: 28px; gap: 3px; }
+.finder-heading .sound-bars i { width: 3px; height: 10px; }
+.finder-heading .sound-bars i:nth-child(2), .finder-heading .sound-bars i:nth-child(4) { height: 20px; }
+.finder-heading .sound-bars i:nth-child(3) { height: 28px; }
+.finder-arrow { font-size: 24px; flex-shrink: 0; }
+@media (max-width: 700px) {
+    .recommendation-art .art-orbit { width: min(300px, 90%); }
+}

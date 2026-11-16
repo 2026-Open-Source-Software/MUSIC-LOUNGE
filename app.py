@@ -389,6 +389,65 @@ def search_playlists():
     results.sort(key=lambda p: (-p['likes'], p['id']))
     return jsonify([library.public(p) for p in results[:20]])
 
+@app.get('/api/discovery/songs')
+def discovery_songs():
+    """공유된 플레이리스트 내 수록곡 제목/아티스트 검색 (recommendations.js 연동)"""
+    q = (request.args.get('q') or '').strip().lower()
+    if not q or len(q) > 120:
+        return jsonify({'songs': []})
+
+    found = []
+    seen = set()
+    for p in library.saved_playlists():
+        if not p.get('shared_rooms'):
+            continue
+        for s in p.get('songs', []):
+            if not isinstance(s, dict):
+                continue
+            vid = s.get('video_id')
+            title = s.get('title') or ''
+            artist = s.get('artist') or ''
+            if vid and vid not in seen and (q in title.lower() or q in artist.lower()):
+                seen.add(vid)
+                found.append({
+                    'video_id': vid,
+                    'title': title,
+                    'artist': artist,
+                    'url': s.get('url') or f'https://www.youtube.com/watch?v={vid}',
+                })
+                if len(found) >= 10:
+                    break
+        if len(found) >= 10:
+            break
+    return jsonify({'songs': found})
+
+
+@app.get('/api/discovery/playlists')
+def discovery_playlists():
+    """선택한 두 곡(first, second)이 모두 포함된 공유 플레이리스트 검색 (recommendations.js 연동)"""
+    first = (request.args.get('first') or '').strip()
+    second = (request.args.get('second') or '').strip()
+    if not first or not second or first == second:
+        return jsonify({'playlists': []})
+
+    matched = []
+    for p in library.saved_playlists():
+        if not p.get('shared_rooms'):
+            continue
+        valid_songs = [s for s in p.get('songs', []) if isinstance(s, dict) and s.get('video_id')]
+        vids = {s['video_id'] for s in valid_songs}
+        if first in vids and second in vids:
+            first_vid = valid_songs[0]['video_id']
+            pub = library.public(p)
+            matched.append({
+                **pub,
+                'songs': valid_songs,
+                'song_count': len(valid_songs),
+                'cover_url': f'https://i.ytimg.com/vi/{first_vid}/hqdefault.jpg',
+            })
+
+    matched.sort(key=lambda x: (-x['likes'], x['id']))
+    return jsonify({'playlists': matched[:20]})
 
 @app.route('/api/me/playlists/<int:playlist_id>', methods=['PATCH', 'DELETE'])
 def manage_playlist(playlist_id):
@@ -568,7 +627,7 @@ def events(room):
 
 @app.post('/api/rooms/<room>/listening')
 def listening(room):
-    if not session.get('user_pk'):
+    if not session.get('user_id'):
         return auth_error()
     if error := room_error(room):
         return error
