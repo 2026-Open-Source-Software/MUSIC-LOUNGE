@@ -23,6 +23,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from storage import init_db, connect_db
 from sample_data import ROOMS
 import playlist_service as library
+import discovery_service
 from realtime import RoomHub, encode_event
 import youtube_import
 import audio_service
@@ -388,6 +389,17 @@ def search_playlists():
         results = [p for p in results if q in p['title'].lower() or q in p['user'].lower()]
     results.sort(key=lambda p: (-p['likes'], p['id']))
     return jsonify([library.public(p) for p in results[:20]])
+
+
+@app.get('/api/discovery/songs')
+def discovery_songs():
+    return jsonify({'songs': discovery_service.search_songs(request.args.get('q', ''))})
+
+
+@app.get('/api/discovery/playlists')
+def discovery_playlists():
+    ids = [request.args.get(key) for key in ('first', 'second', 'third')]
+    return jsonify({'playlists': discovery_service.find_playlists(ids)})
 
 
 @app.route('/api/me/playlists/<int:playlist_id>', methods=['PATCH', 'DELETE'])
