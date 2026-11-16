@@ -26,6 +26,9 @@
 .recommendation-card h3 { margin: 0 0 5px; font-size: 14px; color: #eff3eb; overflow-wrap: anywhere; }
 .recommendation-card small { font-size: 11px; color: #9eaa98; }
 .recommendation-card ul { list-style: none; padding: 0; margin: 8px 0; font-size: 11px; line-height: 1.7; color: #c3d9af; overflow-wrap: anywhere; }
+.recommendation-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.song-finder .recommendation-import { background: #c3d9af; color: #172016; border-color: #c3d9af; font-weight: 700; }
+.song-finder .recommendation-import:disabled { opacity: .6; cursor: default; }
 #recommendation-detail { background: #1a211b; color: #eef3e9; border: 1px solid #c3d9af44; border-radius: 22px; width: min(540px, 90vw); max-height: 80vh; box-sizing: border-box; }
 #recommendation-detail li { margin: 12px 0; overflow-wrap: anywhere; }
 #recommendation-detail a { color: #c3d9af; }

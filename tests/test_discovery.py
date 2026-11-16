@@ -79,6 +79,40 @@ class DiscoveryTest(unittest.TestCase):
         playlists = self.client.get(f'/api/discovery/playlists?first={A}&second={B}&third={C}').get_json()['playlists']
         self.assertEqual([p['title'] for p in playlists], ['공유 목록'])
 
+    def login(self, client, user_id):
+        with connect_db() as db:
+            row = db.execute('SELECT id, nickname FROM users WHERE user_id = ?', (user_id,)).fetchone()
+        with client.session_transaction() as sess:
+            sess.update(user_pk=row['id'], user_id=user_id, nickname=row['nickname'])
+        return row['id']
+
+    def test_import_requires_login(self):
+        res = web.app.test_client().post(f'/api/discovery/playlists/{self.private["id"]}/import', json={})
+        self.assertEqual(res.status_code, 401)
+
+    def test_import_copies_unshared_playlist(self):
+        client = web.app.test_client()
+        alice_pk = self.login(client, 'alice')
+        res = client.post(f'/api/discovery/playlists/{self.private["id"]}/import', json={})
+        self.assertEqual(res.status_code, 201)
+        copied = res.get_json()
+        self.assertNotEqual(copied['id'], self.private['id'])
+        self.assertEqual(copied['title'], '비공개 목록')
+        self.assertEqual(copied['user'], '앨리스')
+        self.assertEqual(copied['shared_rooms'], [])  # 가져온 목록은 공유하지 않음
+        self.assertEqual([s['video_id'] for s in copied['songs']], [A, B, D])
+        self.assertIn(copied['id'], [p['id'] for p in library.own_playlists(alice_pk)])
+        # 원본은 그대로
+        original = next(p for p in library.saved_playlists() if p['id'] == self.private['id'])
+        self.assertEqual(original['user'], '밥')
+        with connect_db() as db:
+            db.execute('DELETE FROM playlists WHERE id = ?', (copied['id'],))
+
+    def test_import_missing_playlist(self):
+        client = web.app.test_client()
+        self.login(client, 'alice')
+        self.assertEqual(client.post('/api/discovery/playlists/99999/import', json={}).status_code, 404)
+
     def test_invalid_selection(self):
         for query in (f'first={A}', f'first={A}&second={A}', f'first={A}&second=bad'):
             res = self.client.get(f'/api/discovery/playlists?{query}')

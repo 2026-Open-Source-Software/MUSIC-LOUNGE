@@ -402,6 +402,16 @@ def discovery_playlists():
     return jsonify({'playlists': discovery_service.find_playlists(ids)})
 
 
+@app.post('/api/discovery/playlists/<int:playlist_id>/import')
+def discovery_import(playlist_id):
+    if not session.get('user_pk'):
+        return auth_error()
+    copied = discovery_service.import_playlist(session['user_pk'], session['nickname'], playlist_id)
+    if copied is None:
+        return jsonify({'error': '플레이리스트를 찾을 수 없습니다.'}), 404
+    return jsonify(copied), 201
+
+
 @app.route('/api/me/playlists/<int:playlist_id>', methods=['PATCH', 'DELETE'])
 def manage_playlist(playlist_id):
     if not session.get('user_pk'):

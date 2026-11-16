@@ -94,3 +94,22 @@ def find_playlists(video_ids, limit=PLAYLIST_LIMIT):
         })
     results.sort(key=lambda p: (-p['likes'], -p['id']))
     return results[:limit]
+
+
+def import_playlist(user_pk, nickname, playlist_id):
+    """찾은 플레이리스트를 내 계정에 복사합니다. 복사본은 어느 라운지에도 공유하지 않습니다.
+
+    원본이 없으면 None을 돌려줍니다.
+    """
+    source = next((p for p in library.saved_playlists() if p['id'] == playlist_id), None)
+    if source is None:
+        return None
+    songs = [{key: song[key] for key in ('title', 'url', 'artist', 'duration') if key in song}
+             for song in _tracks(source)]
+    if not songs:
+        raise library.ValidationError('가져올 수 있는 곡이 없는 플레이리스트입니다.')
+    return library.create_playlist(user_pk, nickname, {
+        'title': source['title'][:60],
+        'room': source['room'],
+        'songs': songs[:100],
+    })
