@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lounge-home.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
     <script type="module" src="{{ url_for('static', filename='app.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/recommendations.css') }}">
+    <script type="module" src="{{ url_for('static', filename='js/recommendations.js') }}"></script>
 </head>
 <body class="lounge-home" data-authenticated="{{ 'true' if session.get('user_id') else 'false' }}">
 <header class="topbar">
@@ -21,11 +23,27 @@
             <p>혼자 듣던 음악이 누군가의 새로운 취향이 되는 곳.<br>좋아하는 멜로디를 공유하고, 서로의 감성을 이어보세요.</p>
             <div class="hero-actions"><a class="primary hero-action" href="#selection">내 취향의 라운지 찾기 <span aria-hidden="true">↗</span></a><a class="hero-library" href="{{ url_for('mypage') if session.get('user_id') else url_for('login') }}">내 플레이리스트 만들기 <span aria-hidden="true">↗</span></a></div>
         </div>
-        <div class="hero-art" aria-hidden="true">
-            <div class="art-orbit"></div><div class="art-glow"></div>
-            <div class="vinyl"><div class="vinyl-label"><span>MUSIC<br>LOUNGE</span><i></i><small>SIDE A · YOUR VIBE</small></div></div>
-            <div class="sound-capsule"><span class="sound-bars"><i></i><i></i><i></i><i></i><i></i></span><div>Find your frequency.<small>취향으로 연결되는 순간</small></div><span class="capsule-arrow">↗</span></div>
-            <span class="art-caption">FIND YOUR SONG. FIND YOUR VIBE.</span>
+        <div class="hero-art recommendation-art">
+            <div class="art-orbit" aria-hidden="true"></div><div class="art-glow" aria-hidden="true"></div>
+            <div class="vinyl" aria-hidden="true"><div class="vinyl-label"><span>MUSIC<br>LOUNGE</span><i></i><small>SIDE A · YOUR VIBE</small></div></div>
+            <section class="song-finder" aria-labelledby="finder-title">
+                <div class="finder-heading">
+                    <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+                    <div><h2 id="finder-title">Find your perfect mix.</h2><small>나만의 완벽한 음악 조합을 찾아보세요.</small></div>
+                    <span class="finder-arrow" aria-hidden="true">↗</span>
+                </div>
+                <form id="song-finder-form">
+                    <div class="song-slot">
+                        <label for="finder-songs">노래 제목</label>
+                        <div class="song-query"><input id="finder-songs" type="search" maxlength="364" placeholder="예: 노래 제목 1, 노래 제목 2, 노래 제목 3" autocomplete="off" aria-describedby="finder-input-help"><button type="button" class="song-search">검색</button></div>
+                        <p id="finder-input-help" class="finder-status">쉼표(,)로 구분해 최대 3곡까지 입력해주세요.</p>
+                        <div id="finder-song-choices"></div>
+                    </div>
+                    <button id="finder-submit" type="submit" disabled>플레이리스트 찾기 ↗</button>
+                </form>
+                <p id="finder-feedback" class="finder-status" role="status" aria-live="polite"></p>
+                <div id="finder-results" aria-label="추천 플레이리스트"></div>
+            </section>
         </div>
     </section>
     <p id="page-feedback" class="feedback" role="status" aria-live="polite"></p>
@@ -93,6 +111,7 @@
     <div class="dialog-actions"><button type="button" class="secondary" id="cancel-btn">취소</button><button type="submit" class="primary" id="create-submit">저장하고 공유</button></div>
 </form></dialog>
 <dialog id="share-dialog"><h2>내 플레이리스트 공유</h2><p class="muted">이 라운지에 공유할 목록을 선택하세요. 공유를 해제해도 내 계정에는 남습니다.</p><p id="share-feedback" class="feedback" role="status"></p><div id="share-list"></div><div class="dialog-actions"><a class="secondary" href="{{ url_for('mypage') }}">마이페이지에서 관리</a><button class="primary" id="share-close" type="button">완료</button></div></dialog>
+<dialog id="recommendation-detail" aria-labelledby="recommendation-detail-title"><div class="dialog-actions"><button type="button" class="secondary" id="recommendation-close">닫기</button></div><h2 id="recommendation-detail-title"></h2><p id="recommendation-detail-meta"></p><ol id="recommendation-detail-songs"></ol></dialog>
 <footer>© MUSIC LOUNGE · Find your vibe, share your sound.</footer>
 </body>
 </html>
