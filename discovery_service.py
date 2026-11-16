@@ -36,7 +36,7 @@ def search_songs(query, limit=SONG_LIMIT):
     if not query:
         return []
     if len(query) > MAX_QUERY_LENGTH:
-        raise library.ValidationError(f'곡 제목은 {MAX_QUERY_LENGTH}자 이하로 입력해주세요.')
+        raise library.ValidationError(f'검색어(노래 제목 또는 가수)는 {MAX_QUERY_LENGTH}자 이하로 입력해주세요.')
 
     found = {}
     for playlist in _originals():

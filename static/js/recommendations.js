@@ -36,7 +36,7 @@ async function search() {
     invalidate();
     const titles = input.value.split(',').map(title => title.trim());
     if (titles.length > 3 || titles.some(title => !title || title.length > 120)) {
-        feedback.textContent = '곡 제목을 쉼표로 구분해 최대 3곡까지 입력해주세요. 각 제목은 120자 이하여야 합니다.';
+        feedback.textContent = '노래 제목이나 가수를 쉼표로 구분해 최대 3개까지 입력해주세요. 각 검색어는 120자 이하여야 합니다.';
         return;
     }
     selected = titles.map(() => null);
