@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { collectButton } from './collect.js';
 
 const form = document.querySelector('#song-finder-form');
 let selected = [];
@@ -11,7 +12,6 @@ const feedback = document.querySelector('#finder-feedback');
 const results = document.querySelector('#finder-results');
 const submit = document.querySelector('#finder-submit');
 const dialog = document.querySelector('#recommendation-detail');
-const isAuthenticated = document.body.dataset.authenticated === 'true';
 const node = (tag, text, className) => {
     const element = document.createElement(tag);
     if (text) element.textContent = text;
@@ -133,25 +133,11 @@ form.addEventListener('submit', async event => {
                 }
                 dialog.showModal();
             });
-            const copy = node('button', isAuthenticated ? '내 플레이리스트로 가져오기' : '로그인하고 가져오기', 'recommendation-import');
-            copy.type = 'button';
             const copyStatus = node('p', '', 'finder-status');
             copyStatus.setAttribute('role', 'status');
-            copy.addEventListener('click', async () => {
-                if (!isAuthenticated) { window.location.assign('/login'); return; }
-                copy.disabled = true;
-                copyStatus.textContent = '가져오는 중…';
-                try {
-                    await api(`/api/discovery/playlists/${playlist.id}/import`, 'POST', {});
-                    copy.textContent = '가져왔어요 ✓';
-                    copyStatus.textContent = '마이페이지의 내 플레이리스트에 추가했어요.';
-                } catch (error) {
-                    copy.disabled = false;
-                    copyStatus.textContent = error.message;
-                }
-            });
+            const copy = collectButton(playlist, { className: 'recommendation-import', onMessage: text => { copyStatus.textContent = text; } });
             const actions = node('div', '', 'recommendation-actions');
-            actions.append(detail, copy);
+            actions.append(detail, ...(copy ? [copy] : []));
             body.append(matched, actions, copyStatus);
             card.append(cover, body);
             results.append(card);

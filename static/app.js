@@ -1,6 +1,7 @@
 import { YoutubeImporter } from "./js/youtube-import.js";
 import { api, RoomConnection } from "./js/api.js";
 import { el, renderPlayer, trackList } from "./js/playlist-ui.js";
+import { collectButton } from "./js/collect.js";
 const $ = (id) => document.getElementById(id);
 const importer = new YoutubeImporter({ dialog: "create-dialog", prefix: "create-import", songs: "playlist-songs", title: "playlist-title", submit: "create-submit" });
 let currentRoom = null;
@@ -209,7 +210,10 @@ function renderPlaylists() {
             catch (error) { feedback(error); }
             finally { like.disabled = false; }
         });
-        item.append(info, like);
+        const collect = collectButton(playlist, { className: "lounge-collect", onMessage: (text) => { $("collect-feedback").textContent = text; } });
+        const buttons = el("div", "playlist-buttons");
+        buttons.append(like, ...(collect ? [collect] : []));
+        item.append(info, buttons);
         $("playlist-list").append(item);
     });
     if (!visible.length) $("playlist-list").append(el("p", "empty-state", selectedMember ? "아직 이 라운지에 공유한 플레이리스트가 없어요." : "아직 공유된 음악이 없어요. 첫 플레이리스트를 공유해보세요."));

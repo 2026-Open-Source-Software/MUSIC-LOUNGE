@@ -7,6 +7,9 @@ const importer = new YoutubeImporter({ dialog: "edit-dialog", prefix: "edit-impo
 let editing = null;
 let deleting = null;
 let rooms = {};
+const metaText = (playlist) => playlist.collected_from
+    ? `${playlist.songs.length}곡 · 원본 좋아요 ${playlist.collected_from.likes ?? "-"} · ${playlist.collected_from.nickname || "알 수 없음"}님의 플레이리스트`
+    : `${playlist.songs.length}곡 · 좋아요 ${playlist.likes} · ${playlist.shared_rooms.length ? `${playlist.shared_rooms.length}개 라운지에 공유 중` : "내 보관함"}`;
 function openEditor(playlist = null) {
     importer.reset(playlist?.songs ?? []);
     editing = playlist?.id ?? null;
@@ -32,13 +35,21 @@ async function loadLibrary() {
             empty.append(create);
             library.append(empty);
         }
-        playlists.forEach((playlist) => {
-            const card = element("article", "panel library-card");
+        const created = playlists.filter((playlist) => !playlist.collected_from);
+        const collected = playlists.filter((playlist) => playlist.collected_from);
+        [...created, ...collected].forEach((playlist, index) => {
+            if (collected.length && index === created.length) {
+                const heading = element("div", "collected-heading");
+                heading.append(element("h3", "", `수집한 플레이리스트 ${collected.length}`), element("p", "muted", "플레이리스트 찾기에서 수집한 목록이에요. 원본 그대로 보관되며 수정하거나 라운지에 공유할 수 없어요."));
+                library.append(heading);
+            }
+            const card = element("article", `panel library-card${playlist.collected_from ? " collected-card" : ""}`);
             const cover = element("div", "library-cover");
             cover.dataset.room = playlist.room;
             cover.append(element("span", "room-badge", playlist.room_name));
+            if (playlist.collected_from) cover.append(element("span", "collected-badge", "수집"));
             const content = element("div", "library-content");
-            content.append(element("p", "muted library-meta", `${playlist.songs.length}곡 · 좋아요 ${playlist.likes} · ${playlist.shared_rooms.length ? `${playlist.shared_rooms.length}개 라운지에 공유 중` : "내 보관함"}`), element("h3", "", playlist.title));
+            content.append(element("p", "muted library-meta", metaText(playlist)), element("h3", "", playlist.title));
             const preview = element("div", "library-player hidden");
             const openPlayer = element("button", "primary", "♫ MP3 플레이어 열기");
             openPlayer.type = "button";
@@ -58,7 +69,7 @@ async function loadLibrary() {
                     try {
                         const result = await request(`/api/me/playlists/${playlist.id}/share`, "PUT", { room: id, enabled: checkbox.checked });
                         playlist.shared_rooms = result.playlist.shared_rooms;
-                        content.querySelector(".library-meta").textContent = `${playlist.songs.length}곡 · 좋아요 ${playlist.likes} · ${playlist.shared_rooms.length ? `${playlist.shared_rooms.length}개 라운지에 공유 중` : "내 보관함"}`;
+                        content.querySelector(".library-meta").textContent = metaText(playlist);
                         byId("library-feedback").textContent = `${room.name} 라운지 공유 설정을 저장했어요.`;
                     } catch (error) { checkbox.checked = !checkbox.checked; byId("library-feedback").textContent = error.message; }
                     finally { checkbox.disabled = false; }
@@ -66,7 +77,8 @@ async function loadLibrary() {
                 label.append(checkbox, element("span", "", room.name));
                 sharing.append(label);
             });
-            content.append(sharing);
+            if (playlist.collected_from) content.append(element("p", "muted collected-hint", "수집한 플레이리스트는 수정하거나 라운지에 공유할 수 없어요."));
+            else content.append(sharing);
             const actions = element("div", "dialog-actions");
             const edit = element("button", "secondary", "수정");
             edit.type = "button";
@@ -79,7 +91,8 @@ async function loadLibrary() {
                 byId("delete-feedback").textContent = "";
                 byId("delete-dialog").showModal();
             });
-            actions.append(edit, remove);
+            if (playlist.collected_from) actions.append(remove);
+            else actions.append(edit, remove);
             content.append(actions);
             card.append(cover, content);
             library.append(card);

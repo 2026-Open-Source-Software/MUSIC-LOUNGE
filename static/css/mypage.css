@@ -31,3 +31,10 @@
     .mypage-theme .page-heading h1 { letter-spacing: -1.5px; }
     .mypage-theme .account-grid { gap: 28px; }
 }
+
+/* 수집한 플레이리스트: 플레이리스트 찾기에서 수집한 복사본 */
+.collected-heading { grid-column: 1 / -1; margin-top: 18px; padding-top: 18px; border-top: 1px solid #ffffff1f; }
+.collected-heading h3 { margin: 0 0 4px; color: #e6eedd; }
+.collected-heading p { margin: 0; }
+.library-cover .collected-badge { margin-left: 6px; background: #c3d9af; color: #172016; border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; }
+.collected-hint { font-size: 12px; margin: 6px 0; }

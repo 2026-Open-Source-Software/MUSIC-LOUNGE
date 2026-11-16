@@ -399,14 +399,15 @@ def discovery_songs():
 @app.get('/api/discovery/playlists')
 def discovery_playlists():
     ids = [request.args.get(key) for key in ('first', 'second', 'third')]
-    return jsonify({'playlists': discovery_service.find_playlists(ids)})
+    playlists = discovery_service.find_playlists(ids)
+    return jsonify({'playlists': discovery_service.with_collect_state(playlists, session.get('user_pk'))})
 
 
-@app.post('/api/discovery/playlists/<int:playlist_id>/import')
-def discovery_import(playlist_id):
+@app.post('/api/discovery/playlists/<int:playlist_id>/collect')
+def discovery_collect(playlist_id):
     if not session.get('user_pk'):
         return auth_error()
-    copied = discovery_service.import_playlist(session['user_pk'], session['nickname'], playlist_id)
+    copied = discovery_service.collect_playlist(session['user_pk'], session['nickname'], playlist_id)
     if copied is None:
         return jsonify({'error': '플레이리스트를 찾을 수 없습니다.'}), 404
     return jsonify(copied), 201
@@ -461,7 +462,7 @@ def playlists(room):
         )
         hub.publish(room, 'playlists_changed', {'room': room})
         return jsonify(p), 201
-    return jsonify(library.room_playlists(room))
+    return jsonify(discovery_service.with_collect_state(library.room_playlists(room), session.get('user_pk')))
 
 
 @app.post('/api/rooms/<room>/playlists/<int:playlist_id>/like')
@@ -546,6 +547,7 @@ def events(room):
         raise library.ValidationError('연결 식별자가 올바르지 않습니다.')
 
     user_id = session['user_id']
+    user_pk = session.get('user_pk')
     nickname = session['nickname']
     session_id = session['session_id']
     with hub.lock:
@@ -562,7 +564,7 @@ def events(room):
                     'room': room,
                     'messages': chat_history(room),
                     'participants': hub.participants(room),
-                    'playlists': library.room_playlists(room),
+                    'playlists': discovery_service.with_collect_state(library.room_playlists(room), user_pk),
                     'self': library.member_id(user_id),
                 }
             yield 'retry: 2000\n' + encode_event('snapshot', snapshot)

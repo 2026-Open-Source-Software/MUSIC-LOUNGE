@@ -2,7 +2,7 @@
 
 - 곡 검색은 DB의 플레이리스트에 실제로 담긴 곡만 대상으로 합니다.
 - 같은 곡 여부는 YouTube 영상 ID(video_id)로만 판단합니다.
-- 공유 여부와 관계없이 모든 플레이리스트를 찾습니다.
+- 공유 여부와 관계없이 모든 플레이리스트를 찾되, 수집한 플레이리스트(복사본)는 제외합니다.
 """
 import re
 
@@ -22,6 +22,11 @@ def _tracks(playlist):
             yield song
 
 
+def _originals():
+    """수집한 플레이리스트(복사본)를 뺀 플레이리스트. 같은 목록이 여러 번 나오지 않게 합니다."""
+    return [p for p in library.saved_playlists() if not p.get('collected_from')]
+
+
 def _normalize(text):
     return ' '.join(str(text or '').casefold().split())
 
@@ -34,7 +39,7 @@ def search_songs(query, limit=SONG_LIMIT):
         raise library.ValidationError(f'곡 제목은 {MAX_QUERY_LENGTH}자 이하로 입력해주세요.')
 
     found = {}
-    for playlist in library.saved_playlists():
+    for playlist in _originals():
         seen_here = set()
         for song in _tracks(playlist):
             title, artist = _normalize(song.get('title')), _normalize(song.get('artist'))
@@ -71,7 +76,7 @@ def parse_video_ids(values):
 def find_playlists(video_ids, limit=PLAYLIST_LIMIT):
     wanted = parse_video_ids(video_ids)
     results = []
-    for playlist in library.saved_playlists():
+    for playlist in _originals():
         tracks = list(_tracks(playlist))
         if not set(wanted) <= {song['video_id'] for song in tracks}:
             continue
@@ -96,20 +101,57 @@ def find_playlists(video_ids, limit=PLAYLIST_LIMIT):
     return results[:limit]
 
 
-def import_playlist(user_pk, nickname, playlist_id):
-    """찾은 플레이리스트를 내 계정에 복사합니다. 복사본은 어느 라운지에도 공유하지 않습니다.
+def with_collect_state(playlists, user_pk):
+    """각 플레이리스트에 수집 가능 여부(collect_state)를 붙입니다.
 
+    sample: 기본 예시 목록(DB에 없음) · mine: 내가 만든 목록 · collected: 이미 수집함
+    available: 수집 가능 · login: 로그인 필요
+    """
+    owned, collected = set(), set()
+    if user_pk:
+        for p in library.saved_playlists():
+            if p['owner_pk'] == user_pk:
+                owned.add(p['id'])
+                if p.get('collected_from'):
+                    collected.add(p['collected_from'].get('playlist_id'))
+
+    def state(p):
+        if p.get('sample'):
+            return 'sample'
+        if not user_pk:
+            return 'login'
+        if p['id'] in owned:
+            return 'mine'
+        return 'collected' if p['id'] in collected else 'available'
+
+    return [{**p, 'collect_state': state(p)} for p in playlists]
+
+
+def collect_playlist(user_pk, nickname, playlist_id):
+    """찾은 플레이리스트를 내 계정에 '수집한 플레이리스트'로 복사합니다.
+
+    수집한 목록은 원본 정보를 기억하고, 이름을 바꾸거나 라운지에 공유할 수 없습니다.
     원본이 없으면 None을 돌려줍니다.
     """
-    source = next((p for p in library.saved_playlists() if p['id'] == playlist_id), None)
+    playlists = library.saved_playlists()
+    source = next((p for p in playlists if p['id'] == playlist_id and not p.get('collected_from')), None)
     if source is None:
         return None
+    if source['owner_pk'] == user_pk:
+        raise library.ValidationError('내가 만든 플레이리스트는 수집할 수 없어요.')
+    if any(p['owner_pk'] == user_pk and (p.get('collected_from') or {}).get('playlist_id') == playlist_id
+           for p in playlists):
+        raise library.ValidationError('이미 수집한 플레이리스트예요. 마이페이지에서 확인해주세요.')
     songs = [{key: song[key] for key in ('title', 'url', 'artist', 'duration') if key in song}
              for song in _tracks(source)]
     if not songs:
-        raise library.ValidationError('가져올 수 있는 곡이 없는 플레이리스트입니다.')
+        raise library.ValidationError('수집할 수 있는 곡이 없는 플레이리스트입니다.')
     return library.create_playlist(user_pk, nickname, {
         'title': source['title'][:60],
         'room': source['room'],
         'songs': songs[:100],
+    }, collected_from={
+        'playlist_id': source['id'],
+        'owner_pk': source['owner_pk'],
+        'nickname': source['user'],
     })

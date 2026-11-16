@@ -93,15 +93,27 @@ def youtube_track(value):
     return track
 
 
-def _serialize_songs_col(room, shared_rooms, songs):
-    return json.dumps(
-        {
-            'room': room,
-            'shared_rooms': shared_rooms,
-            'songs': songs,
-        },
-        ensure_ascii=False,
-    )
+def _serialize_songs_col(room, shared_rooms, songs, collected_from=None):
+    payload = {
+        'room': room,
+        'shared_rooms': shared_rooms,
+        'songs': songs,
+    }
+    if collected_from:
+        payload['collected_from'] = collected_from
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _collected_from_col(raw_value):
+    """수집한 플레이리스트면 원본 정보(playlist_id, owner_pk, nickname)를, 아니면 None을 돌려줍니다."""
+    raw_value = (raw_value or '').strip()
+    if not raw_value.startswith('{'):
+        return None
+    try:
+        origin = json.loads(raw_value).get('collected_from')
+    except ValueError:
+        return None
+    return origin if isinstance(origin, dict) else None
 
 
 def _deserialize_songs_col(raw_value):
@@ -170,6 +182,7 @@ def _row_to_playlist(row):
         'shared_rooms': shared_rooms,
         'created_at': row['created_at'],
         'updated_at': row['updated_at'],
+        'collected_from': _collected_from_col(row['songs']),
     }
 
 
@@ -184,14 +197,29 @@ def saved_playlists():
             ORDER BY p.id DESC
             '''
         ).fetchall()
-    return [_row_to_playlist(row) for row in rows]
+        nicknames = dict(db.execute('SELECT id, nickname FROM users').fetchall())
+    playlists = [_row_to_playlist(row) for row in rows]
+    likes = {p['id']: p['likes'] for p in playlists}
+    for p in playlists:
+        origin = p['collected_from']
+        if origin:
+            if origin.get('owner_pk') in nicknames:
+                origin['nickname'] = nicknames[origin['owner_pk']]  # 원본 주인이 닉네임을 바꿔도 최신 닉네임 표시
+            origin['likes'] = likes.get(origin.get('playlist_id'))  # 원본이 삭제되면 None
+    return playlists
 
 
 def public(p):
     rooms = _available_rooms()
     room_info = rooms.get(p['room'], {'name': p['room']})
+    origin = p.get('collected_from')
     return {
-        **{k: v for k, v in p.items() if k not in ('owner_id', 'owner_pk')},
+        **{k: v for k, v in p.items() if k not in ('owner_id', 'owner_pk', 'collected_from')},
+        'collected_from': {
+            'playlist_id': origin.get('playlist_id'),
+            'nickname': origin.get('nickname', ''),
+            'likes': origin.get('likes'),
+        } if origin else None,
         'member_id': member_id(p['owner_id']) if p.get('owner_id') else f'sample-{p["id"]}',
         'room_name': room_info['name'],
     }
@@ -214,10 +242,10 @@ def own_playlists(user_id_or_pk):
     ]
 
 
-def create_playlist(user_id_or_pk, nickname, data, shared_room=None):
+def create_playlist(user_id_or_pk, nickname, data, shared_room=None, collected_from=None):
     title, songs, room = validate_fields(data)
-    shared_rooms = [shared_room] if shared_room else []
-    songs_payload = _serialize_songs_col(room, shared_rooms, songs)
+    shared_rooms = [shared_room] if shared_room and not collected_from else []
+    songs_payload = _serialize_songs_col(room, shared_rooms, songs, collected_from)
 
     with connect_db() as db:
         db.execute('BEGIN IMMEDIATE')
@@ -267,14 +295,18 @@ def change_playlist(user_id_or_pk, playlist_id, data=None, delete=False, share=N
         else:
             if share is not None:
                 room, enabled = share
+                if enabled and p['collected_from']:
+                    raise ValidationError('수집한 플레이리스트는 라운지에 공유할 수 없어요.')
                 if enabled and room not in p['shared_rooms']:
                     p['shared_rooms'].append(room)
                 elif not enabled and room in p['shared_rooms']:
                     p['shared_rooms'].remove(room)
             else:
+                if p['collected_from']:
+                    raise ValidationError('수집한 플레이리스트는 수정할 수 없어요.')
                 p['title'], p['songs'], p['room'] = validate_fields(data, p)
             affected.update(p['shared_rooms'])
-            songs_payload = _serialize_songs_col(p['room'], p['shared_rooms'], p['songs'])
+            songs_payload = _serialize_songs_col(p['room'], p['shared_rooms'], p['songs'], p['collected_from'])
             db.execute(
                 'UPDATE playlists SET title = ?, songs = ? WHERE id = ?',
                 (p['title'], songs_payload, playlist_id),
