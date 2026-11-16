@@ -13,6 +13,7 @@
 - **장르별 라운지**: 기본 발라드·R&B·힙합·인디 라운지, DB의 라운지 정보 조회, 공유 목록과 좋아요
 - **실시간 소통**: SSE 기반 채팅·참여자·공유 목록 변경 알림, 계정별 참여 인원 및 선택한 플레이리스트의 청취 인원 표시
 - **YouTube 가져오기·재생**: 공개 영상·재생목록의 곡 정보 가져오기, MP3 준비·캐시·재생
+- **AI 노래 추천**: 내 플레이리스트 기반 비슷한 곡 추천, Ollama 기반 분위기 추천. 실존하는 곡만 표시하고 결과는 요청한 사람에게만 보임 ([AI 노래 추천](#ai-노래-추천))
 
 프론트엔드는 Jinja 템플릿, 일반 JavaScript ES modules, CSS로 구성합니다. 별도의 Node.js 빌드 과정은 없습니다.
 
@@ -25,6 +26,8 @@ git clone https://github.com/leetaegyeong126/MUSIC-LOUNGE.git
 cd MUSIC-LOUNGE
 docker compose up --build -d
 ```
+
+처음 실행하면 `ollama-pull`이 AI 모델(`gemma4`, 약 6.6GB)을 내려받습니다. 다운로드가 끝나기 전에도 사이트와 "비슷한 곡 추천"은 사용할 수 있고, 분위기 추천만 완료 후 동작합니다. 진행 상황은 `docker compose logs -f ollama-pull`로 확인합니다.
 
 | 화면·서비스 | 주소 |
 | --- | --- |
@@ -50,6 +53,9 @@ flowchart LR
     Media --> YouTube[YouTube]
     Web -->|SQLite 파일 읽기·쓰기| Volume[(db_data 볼륨)]
     DB[db · Alpine 보조 컨테이너] ---|/data 마운트| Volume
+    Web -->|HTTP · ollama:11434| Ollama[ollama · AI 모델]
+    Pull[ollama-pull · 최초 모델 다운로드] -->|ollama pull| Ollama
+    Ollama --- Models[(ollama_models 볼륨)]
 ```
 
 | Compose 서비스 | 컨테이너명 | 역할 | 호스트 포트 | 마운트 |
@@ -57,12 +63,14 @@ flowchart LR
 | `web` | `music-lounge-app` | 화면, 인증, REST API, SSE, SQLite 접근, MP3 캐시 | `8000 → 5000` | 프로젝트 `.:/app`, `db_data:/app/instance` |
 | `ytdlp-server` | `music-lounge-ytdlp` | 메타데이터 추출, YouTube 검색, 오디오 다운로드·MP3 변환 | `5001 → 5001` | 별도 영속 볼륨 없음 |
 | `db` | `music-lounge-db` | `db_data` 볼륨을 공유하는 Alpine 컨테이너 | 없음 | `db_data:/data` |
+| `ollama` | `music-lounge-ollama` | AI 노래 추천의 분위기 추천에 쓰는 로컬 LLM 서버 | 없음 (내부망 `ollama:11434`) | `ollama_models:/root/.ollama` |
+| `ollama-pull` | `music-lounge-ollama-pull` | `ollama`가 준비되면 모델을 내려받고 종료. 이미 받은 모델은 다시 받지 않음 | 없음 | 없음 |
 
 **SQLite는 `web` 프로세스가 직접 사용하는 파일 DB입니다.** `db` 컨테이너는 `tail -f /dev/null`로 유지되며 MySQL·PostgreSQL 같은 DB 서버를 실행하지 않습니다. Nginx 컨테이너도 현재 구성에는 없습니다.
 
 Compose에서는 DB가 `/app/instance/lounge.sqlite3`, 캐시가 `/app/instance/audio/`에 저장됩니다. 이 경로는 이름 있는 `db_data` 볼륨에 연결되므로 호스트 프로젝트의 `instance/`와는 별개입니다. yt-dlp 서버는 변환에 임시 디렉터리를 사용하고, 응답 종료 시 정리하도록 구현되어 있습니다.
 
-`web`의 `depends_on`은 컨테이너 시작 순서를 지정합니다. 서비스 준비 완료를 검사하는 healthcheck 설정은 없으므로 시작 직후 미디어 요청이 실패하면 로그와 `/health`를 확인하세요.
+`web`의 `depends_on`은 컨테이너 시작 순서를 지정합니다. `ollama`에만 준비 확인(healthcheck)이 있고 `ollama-pull`이 이를 기다립니다. 나머지 서비스는 준비 완료를 검사하지 않으므로 시작 직후 미디어 요청이 실패하면 로그와 `/health`를 확인하세요.
 
 ## 로컬 개발 실행
 
@@ -192,6 +200,9 @@ MUSIC-LOUNGE/
 ├── youtube_import.py            # 미디어 서버 메타데이터 호출·정규화
 ├── audio_service.py             # 백그라운드 오디오 요청·캐시
 ├── sample_data.py               # 기본 라운지·샘플 목록
+├── recommend_service.py         # AI 노래 추천: DB·YouTube 관련곡·Ollama, iTunes로 실존 확인
+├── tests/
+│   └── test_recommend.py        # AI 노래 추천 자동화 테스트
 ├── templates/
 │   ├── index.HTML               # 메인·라운지 화면 (확장자 대문자)
 │   ├── login.html
@@ -203,13 +214,14 @@ MUSIC-LOUNGE/
 │   ├── js/                      # API/SSE·플레이어·가져오기·계정 UI
 │   └── backgrounds/             # 라운지 배경 이미지
 ├── ytdlp_server/
-│   ├── app.py                   # 추출·검색·MP3 변환 API
+│   ├── app.py                   # 추출·검색·관련곡·MP3 변환 API
 │   ├── Dockerfile
 │   └── requirements.txt         # yt-dlp 서버 전용 의존성
 ├── docs/
 │   └── music_lounge_db_api.md    # DB/API 상세 참고 명세
 ├── Dockerfile
 ├── docker-compose.yml
+├── docker-compose.gpu.yml       # 선택: Ollama NVIDIA GPU 설정
 ├── requirements.txt             # 웹 앱 의존성: Flask·requests
 ├── GIT_CONVENTION.md
 └── instance/                    # 실행 시 생성되는 DB·캐시 (Git 제외)
@@ -239,8 +251,65 @@ MUSIC-LOUNGE/
 | `GET` | `/api/rooms/<room>/events?connection=<token>` | SSE 연결 |
 | `POST` | `/api/rooms/<room>/listening` | `{connection, playlist_id}` 청취 목록 알림 |
 | `POST` | `/api/rooms/<room>/leave` | `{connection}` 연결 퇴장 |
+| `POST` | `/api/rooms/<room>/ai-recommend` | `{request?}` AI 노래 추천, 요청자에게만 응답 |
 
-미디어 서버는 `/health`, `/api/extract?url=…`, `/api/search?q=…`, `/api/stream?url=…`를 제공합니다. 미디어 서버의 검색은 YouTube 검색이며 웹 앱의 `/api/search`와 대상이 다릅니다.
+미디어 서버는 `/health`, `/api/extract?url=…`, `/api/search?q=…&limit=…`, `/api/related?video_id=…`(YouTube 관련곡), `/api/stream?url=…`를 제공합니다. 미디어 서버의 검색은 YouTube 검색이며 웹 앱의 `/api/search`와 대상이 다릅니다.
+
+## AI 노래 추천
+
+라운지 채팅창 옆 **✨ AI 추천** 버튼을 누르면 입력칸이 AI 요청용으로 바뀝니다. 결과는 **요청한 사람 화면에만** 보이고, 채팅으로 저장하거나 다른 참여자에게 보내지 않습니다. 추천 곡은 모두 실제 YouTube 영상(`video_id`)이라 **내 플레이리스트로 저장**을 누르면 바로 MP3로 들을 수 있습니다.
+
+| 입력 | 동작 |
+| --- | --- |
+| 비워두고 Enter | **비슷한 곡 추천.** 내 플레이리스트와 좋아요한 플레이리스트에서 기준 곡 3개를 고릅니다(내 목록 가중치가 더 높고, 누를 때마다 무작위 선택). 기준 곡마다 YouTube Mix(유튜브 자동 관련곡)와 "같은 플레이리스트에 함께 담긴 곡"(전체 플레이리스트 기준)에 점수를 매기고, 실존 확인을 통과한 6곡을 보여줍니다. Ollama 없이 동작합니다. |
+| 분위기를 적고 Enter (예: `비 오는 날 듣기 좋은 노래`) | **AI 추천.** Ollama가 요청과 기준 곡을 참고해 장르 제한 없이 8곡을 제안하고, 실존 확인을 통과한 곡만 보여줍니다. AI가 없는 곡을 지어내면 같은 검색으로 찾은 실제 곡(보통 같은 아티스트의 다른 곡)으로 바뀝니다. |
+
+- **입장한 라운지는 추천에 쓰지 않습니다.** 라운지 장르, 라운지에 공유된 다른 사람의 목록, 라운지 채팅은 추천에 들어가지 않아 어느 라운지에서 눌러도 같은 기준으로 추천합니다.
+- 이미 가진 곡도 걸러내지 않습니다. 기준 곡이 하나도 없으면 비워두고 Enter를 눌러도 AI 추천(널리 사랑받는 곡)으로 동작합니다.
+- 사용자당 5초에 1번, 서버 전체 동시 2건까지 처리합니다.
+
+### 실존하는 곡만 보여주는 방법
+
+어떤 곡이 나오는지보다 **실제로 있는 곡인지**를 우선합니다. 확인하지 못한 곡은 보여주지 않습니다.
+
+1. **음원 카탈로그 확인**: iTunes Search API(키 불필요)에서 발매된 곡으로 검색되어야 합니다. 커버·노래방·MR·Instrumental·오르골 버전은 제외합니다. 한국 스토어는 결과가 비어 있어 미국 스토어를 쓰며, 한국 곡은 영어 표기로 나오는 경우가 많습니다(예: 밤편지 → `Through the Night · IU`). **화면의 곡 이름은 항상 카탈로그 표기**입니다.
+2. **YouTube 영상 연결**: 영상 제목에 카탈로그의 곡 제목과 아티스트(제목 또는 채널명)가 모두 단어 단위로 있어야 합니다(예: "IU"는 "Stadium" 안에서 맞지 않음, 띄어쓰기 차이는 허용). 커버·노래방(TJ·금영·MR·멜로디 제거 등, 채널명 포함)·1시간 모음·티저 영상은 제외합니다.
+3. 카탈로그나 YouTube에 연결하지 못하면 그때까지 확인된 곡만 보여주고, 하나도 없으면 오류를 안내합니다.
+
+iTunes는 IP당 분당 약 20회만 허용해서 서버 전체에서 분당 18회로 제한하고, 확인 결과는 6시간 캐시합니다. 한 번 추천에 보통 6~12회를 써서 1분 안에 여러 번 추천받으면 일부만 확인될 수 있습니다(화면에 안내).
+
+YouTube Music은 로그인 없이는 곡 검색 결과가 비어 있고(`ytmusicapi`, `music.youtube.com` 검색 모두 앨범·채널만 반환), 영상에 붙는 공식 음원 정보도 일부 공식 오디오 영상에만 있어 실존 확인 기준으로 쓰지 않았습니다. 추천 곡과 영상은 미디어 서버의 YouTube Mix(`/api/related`)와 검색(`/api/search`)에서 가져오고, iTunes는 "발매된 곡인지" 확인에만 씁니다.
+
+### Ollama 준비
+
+분위기 추천에는 [Ollama](https://ollama.com)가 필요하며, **Docker Compose가 `ollama` 컨테이너로 함께 실행하므로 따로 설치할 필요가 없습니다.** 모델은 처음 실행 때 `ollama-pull`이 내려받아 `ollama_models` 볼륨에 저장합니다(`docker compose down -v`를 하면 다시 받습니다). 모델이 준비되기 전이나 Ollama에 연결할 수 없으면 분위기 추천을 요청할 때 안내 문구만 뜨고, "비워두고 Enter"와 나머지 기능은 정상 동작합니다.
+
+- **기본은 CPU 실행**이라 분위기 추천에 1~2분이 걸릴 수 있어 Compose에서는 `OLLAMA_TIMEOUT=300`으로 설정합니다. 첫 요청은 모델을 메모리에 올리느라 더 오래 걸립니다.
+- `gemma4`는 메모리를 많이 사용합니다. Docker Desktop의 메모리 한도(Settings → Resources)가 부족하면 모델이 실행되지 않으니 8GB 이상으로 설정하세요.
+- **NVIDIA GPU**가 있으면 GPU 설정 파일을 함께 지정합니다(Docker Desktop은 WSL2 백엔드, Linux는 NVIDIA Container Toolkit 필요).
+
+  ```sh
+  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+  ```
+
+- 다른 모델을 쓰려면 프로젝트 폴더의 `.env`에 `OLLAMA_MODEL=모델명`을 적고 다시 실행합니다. `web`과 `ollama-pull`이 같은 값을 사용합니다.
+- Compose 없이 직접 실행할 때는 호스트에 Ollama를 설치하고 `ollama pull gemma4` 후 `OLLAMA_BASE_URL`(기본 `http://localhost:11434`)로 연결합니다.
+
+미디어 서버에 `/api/related`가 추가되었으므로 기존 이미지가 있다면 `docker compose up --build`로 다시 빌드하세요.
+
+| 환경 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 주소 (Compose에서는 `http://ollama:11434`) |
+| `OLLAMA_MODEL` | `gemma4` | 사용할 모델 |
+| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초) (Compose에서는 `300`) |
+| `OLLAMA_TEMPERATURE` | `0.5` | 낮을수록 대표곡 위주 |
+| `AI_YOUTUBE_TIMEOUT` | `45` | 미디어 서버 응답 대기 시간(초) |
+| `AI_CATALOG_COUNTRY` | `US` | 곡 확인에 쓰는 iTunes 스토어 국가 (`KR`은 결과가 비어 있음) |
+| `ITUNES_MAX_PER_MINUTE` | `18` | 서버 전체의 분당 iTunes 호출 상한 |
+| `AI_CATALOG_TIMEOUT` | `8` | iTunes 응답 대기 시간(초) |
+| `AI_COOLDOWN_SECONDS` | `5` | 사용자별 재요청 대기 시간(초) |
+| `AI_MAX_CONCURRENT` | `2` | 동시에 처리할 추천 요청 수 |
+| `AI_DEBUG` | 미설정 | `1`이면 서버 콘솔에 프롬프트와 AI가 제안한 곡을 출력 |
 
 ## 검증과 현재 한계
 
@@ -250,7 +319,13 @@ Compose 설정 문법을 확인합니다.
 docker compose config --quiet
 ```
 
-현재 `develop`에는 자동화 테스트 파일이 없습니다. 기존 README에서 안내하던 `tests/test_media.py`와 인증·채팅·미디어 통합 테스트는 저장소에서 확인되지 않으므로 실행·통과를 보장하지 않습니다. 로컬 개발 중인 추천 기능의 테스트는 별도 기능 PR에서 추가할 예정입니다.
+AI 노래 추천의 자동화 테스트는 다음 명령으로 실행합니다. iTunes·YouTube·Ollama는 가짜 응답으로 대체하므로 네트워크 없이 실행됩니다.
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+기존 README에서 안내하던 `tests/test_media.py`와 인증·채팅·미디어 통합 테스트는 저장소에서 확인되지 않으므로 실행·통과를 보장하지 않습니다.
 
 실행 후 메인·로그인·마이페이지, 미디어 서버의 `/health`를 확인하고, 실제 YouTube 가져오기·MP3 변환·여러 브라우저의 SSE 채팅은 해당 실행 환경에서 별도로 확인해야 합니다.
 
@@ -267,8 +342,9 @@ README는 PR의 계획 문구보다 **현재 파일에 구현된 동작**을 우
 | [#13](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/13) | web / ytdlp-server / db 3개 컨테이너, HTTP 미디어 연동, 공유 볼륨 |
 | [#14](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/14) | SQLite 스키마 개선, lounges 조회, DB/API 문서 |
 | [#15](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/15) | 메인·로그인·마이페이지 UI 개편, 미사용 파일 정리 |
+| [#16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16) | AI 노래 추천, 미디어 서버 관련곡 API(`/api/related`), Ollama 컨테이너(모델 자동 다운로드, 선택형 GPU 설정), 추천 테스트 |
 
-2026-11-15 확인 시 AI 추천 [PR #16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16)은 미병합 상태이며 관련 서비스·Ollama 설정이 현재 코드에 없습니다. 함께 듣기 DB 확장 [PR #17](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/17)도 병합 없이 닫혀 있어 해당 PR의 추가 테이블을 현재 스키마로 기술하지 않습니다.
+함께 듣기 DB 확장 [PR #17](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/17)은 병합 없이 닫혀 있어 해당 PR의 추가 테이블을 현재 스키마로 기술하지 않습니다.
 
 ## 기여
 
