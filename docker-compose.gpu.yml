@@ -1,0 +1,11 @@
+# NVIDIA GPU로 Ollama를 실행할 때만 함께 지정합니다.
+# docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

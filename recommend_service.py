@@ -613,7 +613,7 @@ def call_ollama(messages):
     except requests.Timeout:
         raise AIError('AI 응답이 너무 오래 걸려요. 잠시 후 다시 시도해주세요.', 504)
     if response.status_code == 404:
-        raise AIError(f'AI 모델 "{model}"을 찾을 수 없어요. `ollama pull {model}` 후 다시 시도해주세요.', 503)
+        raise AIError(f'AI 모델 "{model}"이 아직 준비되지 않았어요. 처음 실행할 때 자동으로 내려받으니 잠시 후 다시 시도해주세요.', 503)
     if not response.ok:
         log.warning('Ollama returned %s: %s', response.status_code, response.text[:200])
         raise AIError('AI 서버에서 오류가 발생했어요. 잠시 후 다시 시도해주세요.', 502)

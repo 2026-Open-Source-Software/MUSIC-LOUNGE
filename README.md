@@ -27,6 +27,8 @@ cd MUSIC-LOUNGE
 docker compose up --build -d
 ```
 
+처음 실행하면 `ollama-pull`이 AI 모델(`gemma4`, 약 6.6GB)을 내려받습니다. 다운로드가 끝나기 전에도 사이트와 "비슷한 곡 추천"은 사용할 수 있고, 분위기 추천만 완료 후 동작합니다. 진행 상황은 `docker compose logs -f ollama-pull`로 확인합니다.
+
 | 화면·서비스 | 주소 |
 | --- | --- |
 | 메인 | http://localhost:8000/ |
@@ -51,6 +53,9 @@ flowchart LR
     Media --> YouTube[YouTube]
     Web -->|SQLite 파일 읽기·쓰기| Volume[(db_data 볼륨)]
     DB[db · Alpine 보조 컨테이너] ---|/data 마운트| Volume
+    Web -->|HTTP · ollama:11434| Ollama[ollama · AI 모델]
+    Pull[ollama-pull · 최초 모델 다운로드] -->|ollama pull| Ollama
+    Ollama --- Models[(ollama_models 볼륨)]
 ```
 
 | Compose 서비스 | 컨테이너명 | 역할 | 호스트 포트 | 마운트 |
@@ -58,12 +63,14 @@ flowchart LR
 | `web` | `music-lounge-app` | 화면, 인증, REST API, SSE, SQLite 접근, MP3 캐시 | `8000 → 5000` | 프로젝트 `.:/app`, `db_data:/app/instance` |
 | `ytdlp-server` | `music-lounge-ytdlp` | 메타데이터 추출, YouTube 검색, 오디오 다운로드·MP3 변환 | `5001 → 5001` | 별도 영속 볼륨 없음 |
 | `db` | `music-lounge-db` | `db_data` 볼륨을 공유하는 Alpine 컨테이너 | 없음 | `db_data:/data` |
+| `ollama` | `music-lounge-ollama` | AI 노래 추천의 분위기 추천에 쓰는 로컬 LLM 서버 | 없음 (내부망 `ollama:11434`) | `ollama_models:/root/.ollama` |
+| `ollama-pull` | `music-lounge-ollama-pull` | `ollama`가 준비되면 모델을 내려받고 종료. 이미 받은 모델은 다시 받지 않음 | 없음 | 없음 |
 
 **SQLite는 `web` 프로세스가 직접 사용하는 파일 DB입니다.** `db` 컨테이너는 `tail -f /dev/null`로 유지되며 MySQL·PostgreSQL 같은 DB 서버를 실행하지 않습니다. Nginx 컨테이너도 현재 구성에는 없습니다.
 
 Compose에서는 DB가 `/app/instance/lounge.sqlite3`, 캐시가 `/app/instance/audio/`에 저장됩니다. 이 경로는 이름 있는 `db_data` 볼륨에 연결되므로 호스트 프로젝트의 `instance/`와는 별개입니다. yt-dlp 서버는 변환에 임시 디렉터리를 사용하고, 응답 종료 시 정리하도록 구현되어 있습니다.
 
-`web`의 `depends_on`은 컨테이너 시작 순서를 지정합니다. 서비스 준비 완료를 검사하는 healthcheck 설정은 없으므로 시작 직후 미디어 요청이 실패하면 로그와 `/health`를 확인하세요.
+`web`의 `depends_on`은 컨테이너 시작 순서를 지정합니다. `ollama`에만 준비 확인(healthcheck)이 있고 `ollama-pull`이 이를 기다립니다. 나머지 서비스는 준비 완료를 검사하지 않으므로 시작 직후 미디어 요청이 실패하면 로그와 `/health`를 확인하세요.
 
 ## 로컬 개발 실행
 
@@ -214,6 +221,7 @@ MUSIC-LOUNGE/
 │   └── music_lounge_db_api.md    # DB/API 상세 참고 명세
 ├── Dockerfile
 ├── docker-compose.yml
+├── docker-compose.gpu.yml       # 선택: Ollama NVIDIA GPU 설정
 ├── requirements.txt             # 웹 앱 의존성: Flask·requests
 ├── GIT_CONVENTION.md
 └── instance/                    # 실행 시 생성되는 DB·캐시 (Git 제외)
@@ -274,20 +282,26 @@ YouTube Music은 로그인 없이는 곡 검색 결과가 비어 있고(`ytmusic
 
 ### Ollama 준비
 
-분위기 추천에는 [Ollama](https://ollama.com)가 필요합니다. **Ollama는 서버를 실행하는 컴퓨터에만 있으면 되고, 서비스 이용자는 설치할 필요가 없습니다.** Ollama가 없으면 분위기 추천을 요청할 때 안내 문구만 뜨고, "비워두고 Enter"와 나머지 기능은 정상 동작합니다.
+분위기 추천에는 [Ollama](https://ollama.com)가 필요하며, **Docker Compose가 `ollama` 컨테이너로 함께 실행하므로 따로 설치할 필요가 없습니다.** 모델은 처음 실행 때 `ollama-pull`이 내려받아 `ollama_models` 볼륨에 저장합니다(`docker compose down -v`를 하면 다시 받습니다). 모델이 준비되기 전이나 Ollama에 연결할 수 없으면 분위기 추천을 요청할 때 안내 문구만 뜨고, "비워두고 Enter"와 나머지 기능은 정상 동작합니다.
 
-```sh
-ollama pull gemma4
-ollama serve
-```
+- **기본은 CPU 실행**이라 분위기 추천에 1~2분이 걸릴 수 있어 Compose에서는 `OLLAMA_TIMEOUT=300`으로 설정합니다. 첫 요청은 모델을 메모리에 올리느라 더 오래 걸립니다.
+- `gemma4`는 메모리를 많이 사용합니다. Docker Desktop의 메모리 한도(Settings → Resources)가 부족하면 모델이 실행되지 않으니 8GB 이상으로 설정하세요.
+- **NVIDIA GPU**가 있으면 GPU 설정 파일을 함께 지정합니다(Docker Desktop은 WSL2 백엔드, Linux는 NVIDIA Container Toolkit 필요).
 
-Ollama는 실행 환경(OS·GPU)에 따라 설정이 달라 컨테이너에 넣지 않고 호스트에서 실행합니다. Compose의 `web`은 `http://host.docker.internal:11434`로 호스트의 Ollama를 호출합니다(`extra_hosts: host-gateway` 설정 포함). Linux에서는 컨테이너가 접속할 수 있도록 Ollama를 `OLLAMA_HOST=0.0.0.0`으로 실행해야 합니다. 미디어 서버에 `/api/related`가 추가되었으므로 기존 이미지가 있다면 `docker compose up --build`로 다시 빌드하세요.
+  ```sh
+  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+  ```
+
+- 다른 모델을 쓰려면 프로젝트 폴더의 `.env`에 `OLLAMA_MODEL=모델명`을 적고 다시 실행합니다. `web`과 `ollama-pull`이 같은 값을 사용합니다.
+- Compose 없이 직접 실행할 때는 호스트에 Ollama를 설치하고 `ollama pull gemma4` 후 `OLLAMA_BASE_URL`(기본 `http://localhost:11434`)로 연결합니다.
+
+미디어 서버에 `/api/related`가 추가되었으므로 기존 이미지가 있다면 `docker compose up --build`로 다시 빌드하세요.
 
 | 환경 변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 주소 (Compose에서는 `http://host.docker.internal:11434`) |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 주소 (Compose에서는 `http://ollama:11434`) |
 | `OLLAMA_MODEL` | `gemma4` | 사용할 모델 |
-| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초) |
+| `OLLAMA_TIMEOUT` | `120` | 응답 대기 시간(초) (Compose에서는 `300`) |
 | `OLLAMA_TEMPERATURE` | `0.5` | 낮을수록 대표곡 위주 |
 | `AI_YOUTUBE_TIMEOUT` | `45` | 미디어 서버 응답 대기 시간(초) |
 | `AI_CATALOG_COUNTRY` | `US` | 곡 확인에 쓰는 iTunes 스토어 국가 (`KR`은 결과가 비어 있음) |
@@ -328,7 +342,7 @@ README는 PR의 계획 문구보다 **현재 파일에 구현된 동작**을 우
 | [#13](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/13) | web / ytdlp-server / db 3개 컨테이너, HTTP 미디어 연동, 공유 볼륨 |
 | [#14](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/14) | SQLite 스키마 개선, lounges 조회, DB/API 문서 |
 | [#15](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/15) | 메인·로그인·마이페이지 UI 개편, 미사용 파일 정리 |
-| [#16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16) | AI 노래 추천, 미디어 서버 관련곡 API(`/api/related`), Ollama 연결 설정, 추천 테스트 |
+| [#16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16) | AI 노래 추천, 미디어 서버 관련곡 API(`/api/related`), Ollama 컨테이너(모델 자동 다운로드, 선택형 GPU 설정), 추천 테스트 |
 
 함께 듣기 DB 확장 [PR #17](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/17)은 병합 없이 닫혀 있어 해당 PR의 추가 테이블을 현재 스키마로 기술하지 않습니다.
 
