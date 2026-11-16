@@ -112,14 +112,14 @@ form.addEventListener('submit', async event => {
             image.addEventListener('error', () => image.remove(), { once: true });
             cover.append(image);
             const body = node('div');
-            body.append(node('h3', playlist.title), node('small', `${playlist.user} · ${playlist.song_count}곡`));
+            body.append(node('h3', playlist.title), node('small', `${playlist.user} · ${playlist.song_count}곡 · ♥ ${playlist.likes ?? 0}`));
             const matched = node('ul');
             for (const song of playlist.matched_songs) matched.append(node('li', `✓ ${song.title}`));
             const detail = node('button', '상세보기 ↗');
             detail.type = 'button';
             detail.addEventListener('click', () => {
                 document.querySelector('#recommendation-detail-title').textContent = playlist.title;
-                document.querySelector('#recommendation-detail-meta').textContent = `${playlist.user} · 전체 ${playlist.song_count}곡`;
+                document.querySelector('#recommendation-detail-meta').textContent = `${playlist.user} · 전체 ${playlist.song_count}곡 · 좋아요 ${playlist.likes ?? 0}개`;
                 const songs = document.querySelector('#recommendation-detail-songs');
                 songs.replaceChildren();
                 for (const song of playlist.songs) {
