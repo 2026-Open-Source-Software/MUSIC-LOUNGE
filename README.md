@@ -362,6 +362,7 @@ README는 PR의 계획 문구보다 **현재 파일에 구현된 동작**을 우
 | [#15](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/15) | 메인·로그인·마이페이지 UI 개편, 미사용 파일 정리 |
 | [#16](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/16) | AI 노래 추천, 미디어 서버 관련곡 API(`/api/related`), Ollama 컨테이너(모델 자동 다운로드, 선택형 GPU 설정), 추천 테스트 |
 | [#18](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/18) | 플레이리스트 찾기 화면 |
+| [#21](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/21) | 플레이리스트 찾기·수집 API, 수집한 플레이리스트(원본 정보 표시, 수정·공유 제한), 라운지·마이페이지 수집 표시, 찾기·수집 테스트 |
 
 함께 듣기 DB 확장 [PR #17](https://github.com/2026-Open-Source-Software/MUSIC-LOUNGE/pull/17)은 병합 없이 닫혀 있어 해당 PR의 추가 테이블을 현재 스키마로 기술하지 않습니다.
 
