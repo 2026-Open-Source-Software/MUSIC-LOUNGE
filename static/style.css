@@ -243,6 +243,33 @@ dialog { width: min(560px, 94vw); }
 .library-player { background: #edf2e7; border: 1px solid #d1dfc8; border-radius: 12px; padding: 16px; margin-top: 18px; }
 @media (max-width: 540px) { .import-controls { flex-direction: column; } }
 
+/* AI song recommendation (private to the requester). Colors follow the dark lounge theme in css/workspace.css. */
+.ai-btn { flex-shrink: 0; white-space: nowrap; min-height: 46px; background: #ffffff05; border: 1px solid #ffffff24; border-radius: 999px; color: #dce3d6; font-size: 13px; padding: 0 16px; cursor: pointer; }
+.ai-btn:hover:not(:disabled) { background: #ffffff10; }
+.ai-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ai-btn[aria-pressed="true"] { background: #c3d9af18; border-color: #c3d9af66; color: #c3d9af; }
+.chat form.ai-mode input { background: #121612; color: #edf2e7; border-color: #c3d9af88; box-shadow: 0 0 0 3px #c3d9af22; }
+.ai-mode-hint { margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: #c3d9af; }
+.ai-result { margin: 0 0 12px; padding: 14px 16px; background: #121812; color: #c0caba; border: 1px solid #c3d9af24; border-radius: 18px; max-height: 420px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #526149 transparent; }
+.ai-result-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ai-result h3 { margin: 0; font-size: 14px; color: #cfdfbf; }
+.ai-result h3 small { font-size: 11px; font-weight: 400; margin-left: 6px; color: #a4ada0; }
+.ai-close { background: transparent; border: 0; color: #a4ada0; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+.ai-close:hover { color: #edf2e7; }
+.ai-result-list { margin: 10px 0 8px; padding-left: 20px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.ai-result-list li { margin-bottom: 8px; }
+.ai-result-list li::marker { color: #a2b098; }
+.ai-result-list strong { color: #e6eedd; }
+.ai-result-list .muted { color: #a4ada0; }
+.ai-result-list .youtube-link { margin-left: 6px; font-size: 12px; color: #a2b098; }
+.ai-note { margin: 0; font-size: 11px; line-height: 1.6; color: #a4ada0; }
+.ai-context { margin: 8px 0 0; font-size: 12px; color: #a4ada0; }
+.ai-context summary { cursor: pointer; }
+.ai-context-list { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+.ai-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ai-actions button { font-size: 13px; padding: 8px 12px; }
+.ai-result .feedback:empty { display: none; }
+
 /* 라운지·플레이리스트 찾기의 수집하기 버튼 */
 .playlist-buttons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .collect-button.lounge-collect { background: #c3d9af; color: #172016; border: 1px solid #c3d9af; border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
