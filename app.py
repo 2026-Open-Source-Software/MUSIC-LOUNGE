@@ -26,6 +26,7 @@ import playlist_service as library
 from realtime import RoomHub, encode_event
 import youtube_import
 import audio_service
+import recommend_service
 
 init_db()
 
@@ -133,6 +134,11 @@ def invalid_data(error):
 
 @app.errorhandler(youtube_import.MediaError)
 def media_error(error):
+    return jsonify({'error': str(error)}), error.status
+
+
+@app.errorhandler(recommend_service.AIError)
+def ai_error(error):
     return jsonify({'error': str(error)}), error.status
 
 
@@ -511,6 +517,22 @@ def messages(room):
         )
     hub.publish(room, 'message', {'room': room, 'message': message})
     return jsonify(message), 201
+
+
+@app.post('/api/rooms/<room>/ai-recommend')
+def ai_recommend(room):
+    """Private by design: the answer goes only to the caller. It is neither saved nor published to the room.
+
+    The button lives in the lounge, but nothing about the lounge (genre, shared playlists, chat) is used.
+    """
+    if error := room_error(room):
+        return error
+    if not session.get('user_pk'):
+        return auth_error()
+    hint = body().get('request') or ''
+    if not isinstance(hint, str) or len(hint.strip()) > recommend_service.MAX_HINT_LENGTH:
+        raise library.ValidationError(f'요청 내용은 {recommend_service.MAX_HINT_LENGTH}자 이내로 입력해주세요.')
+    return jsonify(recommend_service.recommend(session['user_pk'], hint.strip()))
 
 
 @app.get('/api/rooms/<room>/events')
