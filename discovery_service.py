@@ -1,4 +1,4 @@
-"""플레이리스트 찾기: 선택한 2~3곡이 모두 담긴 플레이리스트를 찾습니다.
+"""플레이리스트 찾기: 선택한 1~3곡이 모두 담긴 플레이리스트를 찾습니다.
 
 - 곡 검색은 DB의 플레이리스트에 실제로 담긴 곡만 대상으로 합니다.
 - 같은 곡 여부는 YouTube 영상 ID(video_id)로만 판단합니다.
@@ -11,7 +11,7 @@ import playlist_service as library
 MAX_QUERY_LENGTH = 120
 SONG_LIMIT = 10
 PLAYLIST_LIMIT = 30
-MIN_SONGS, MAX_SONGS = 2, 3
+MIN_SONGS, MAX_SONGS = 1, 3
 VIDEO_ID = re.compile(r'[A-Za-z0-9_-]{11}')
 
 
@@ -65,7 +65,7 @@ def search_songs(query, limit=SONG_LIMIT):
 def parse_video_ids(values):
     ids = [str(v).strip() for v in values if v is not None and str(v).strip()]
     if not (MIN_SONGS <= len(ids) <= MAX_SONGS):
-        raise library.ValidationError('플레이리스트를 찾으려면 서로 다른 곡을 2~3개 선택해주세요.')
+        raise library.ValidationError('플레이리스트를 찾으려면 곡을 1~3개 선택해주세요.')
     if any(not VIDEO_ID.fullmatch(v) for v in ids):
         raise library.ValidationError('올바르지 않은 곡 정보입니다. 곡을 다시 검색해 선택해주세요.')
     if len(set(ids)) != len(ids):

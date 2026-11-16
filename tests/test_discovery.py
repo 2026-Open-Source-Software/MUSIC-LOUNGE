@@ -180,8 +180,14 @@ class DiscoveryTest(unittest.TestCase):
         self.login(client, 'alice')
         self.assertEqual(self.collect(client, 99999).status_code, 404)
 
+    def test_single_song(self):
+        playlists = self.client.get(f'/api/discovery/playlists?first={C}').get_json()['playlists']
+        self.assertEqual([p['title'] for p in playlists], ['공유 목록'])
+        playlists = self.client.get(f'/api/discovery/playlists?first={A}').get_json()['playlists']
+        self.assertEqual({p['title'] for p in playlists}, {'공유 목록', '비공개 목록'})
+
     def test_invalid_selection(self):
-        for query in (f'first={A}', f'first={A}&second={A}', f'first={A}&second=bad'):
+        for query in ('', f'first={A}&second={A}', f'first={A}&second=bad'):
             res = self.client.get(f'/api/discovery/playlists?{query}')
             self.assertEqual(res.status_code, 400, query)
             self.assertIn('error', res.get_json())

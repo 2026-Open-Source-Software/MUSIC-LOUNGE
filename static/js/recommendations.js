@@ -21,7 +21,7 @@ const node = (tag, text, className) => {
 function invalidate() {
     resultVersion++;
     results.replaceChildren();
-    const complete = selected.length >= 2 && selected.every(Boolean);
+    const complete = selected.length >= 1 && selected.every(Boolean);
     const unique = new Set(selected.filter(Boolean).map(song => song.video_id)).size;
     submit.disabled = !complete || unique !== selected.length;
     feedback.textContent = complete && unique !== selected.length
@@ -63,7 +63,6 @@ async function search() {
                     list.replaceChildren();
                     status.textContent = `선택됨 · ${song.title}`;
                     invalidate();
-                    if (selected.length === 1) feedback.textContent = '공통 플레이리스트 추천을 위해 한 곡 이상 더 입력해주세요.';
                 });
                 item.append(button);
                 list.append(item);
@@ -72,10 +71,7 @@ async function search() {
             if (error.name !== 'AbortError' && version === searchVersion) status.textContent = error.message;
         }
     }));
-    if (version === searchVersion) {
-        invalidate();
-        if (titles.length === 1) feedback.textContent = '공통 플레이리스트 추천에는 2~3곡이 필요합니다.';
-    }
+    if (version === searchVersion) invalidate();
 }
 document.querySelector('.song-search').addEventListener('click', search);
 input.addEventListener('input', () => {
@@ -94,14 +90,16 @@ form.addEventListener('submit', async event => {
     const version = ++resultVersion;
     submit.disabled = true;
     results.replaceChildren();
-    feedback.textContent = '선택한 곡들이 함께 담긴 목록을 찾고 있어요…';
+    feedback.textContent = selected.length === 1 ? '선택한 곡이 담긴 목록을 찾고 있어요…' : '선택한 곡들이 함께 담긴 목록을 찾고 있어요…';
     try {
-        const params = new URLSearchParams({ first: selected[0].video_id, second: selected[1].video_id });
+        const params = new URLSearchParams(selected.map((song, i) => [['first', 'second', 'third'][i], song.video_id]));
         const response = await api(`/api/discovery/playlists?${params}`);
         const playlists = response.playlists.filter(playlist => selected.every(song => playlist.songs.some(track => track.video_id === song.video_id)));
         for (const playlist of playlists) playlist.matched_songs = [...selected];
         if (version !== resultVersion) return;
-        feedback.textContent = playlists.length ? `${playlists.length}개의 공통 플레이리스트를 찾았어요.` : '선택한 곡이 모두 포함된 공유 플레이리스트가 없습니다. 다른 곡 조합을 선택해보세요.';
+        feedback.textContent = playlists.length
+            ? `${playlists.length}개의 ${selected.length === 1 ? '' : '공통 '}플레이리스트를 찾았어요.`
+            : (selected.length === 1 ? '선택한 곡이 담긴 플레이리스트가 없습니다. 다른 곡을 선택해보세요.' : '선택한 곡이 모두 포함된 플레이리스트가 없습니다. 다른 곡 조합을 선택해보세요.');
         for (const playlist of playlists) {
             const card = node('article', '', 'recommendation-card');
             const cover = node('div', '♫', 'recommendation-cover');
