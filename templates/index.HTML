@@ -54,24 +54,33 @@
     </section>
     <section id="lounge" class="hidden">
         <div class="lounge-header">
-            <div><div class="eyebrow">LISTEN TOGETHER</div><h2 id="room-title"></h2><p>음악으로 연결되는 공간</p></div>
+            <div><div class="eyebrow">LISTEN TOGETHER</div><h2 id="room-title"></h2></div>
             <button class="secondary" id="back-btn" type="button">← 다른 라운지</button>
         </div>
         <div class="lounge-grid">
             <div class="lounge-sidebar">
                 <aside class="panel listening-panel" aria-labelledby="listening-heading">
-                    <div class="eyebrow" id="listening-heading">NOW LISTENING</div>
+                    <div class="listening-heading-row">
+                        <div class="eyebrow" id="listening-heading">NOW LISTENING</div>
+                        <details class="listening-audience">
+                            <summary aria-label="청취자 목록 보기"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>—</span></summary>
+                            <div class="listening-audience-menu"><div class="listening-audience-heading"><strong>함께 듣는 사람</strong></div><ul aria-label="청취자 목록"></ul></div>
+                        </details>
+                    </div>
                     <div class="listening-art" aria-hidden="true"><div class="mini-record"><span>ML</span></div></div>
                     <h3 id="listening-title">음악을 골라보세요</h3>
                     <p id="listening-state" class="muted" role="status">플레이리스트를 선택하면 여기에 표시됩니다.</p>
-                    <p id="listening-count" class="listening-count" aria-live="polite">함께 듣는 사람 0명</p>
-                    <div class="listening-controls"><button id="listening-mute" class="secondary" type="button" aria-pressed="false" disabled>음소거</button><button id="listening-tracks-toggle" class="secondary" type="button" aria-expanded="false" aria-controls="listening-tracks" disabled>곡 목록</button></div>
-                    <div id="listening-tracks" class="hidden"></div>
+                    <div class="listening-player" role="group" aria-label="현재 곡 재생 조절">
+                        <button id="listening-play" type="button" aria-label="재생" disabled>▶</button>
+                        <span id="listening-time">0:00</span>
+                        <input id="listening-seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="재생 위치" disabled>
+                        <span id="listening-duration">0:00</span>
+                        <details class="listening-volume"><summary aria-label="음량 조절"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg></summary><label>음량<input id="listening-volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="음량" disabled></label></details>
+                    </div>
                 </aside>
                 <aside class="panel ranking" aria-labelledby="ranking-heading"><h3 class="panel-title" id="ranking-heading">TOP PLAYLISTS</h3><div id="ranking-list"></div></aside>
                 <aside class="panel participants" aria-labelledby="participants-heading">
                     <div class="participants-heading"><h3 id="participants-heading">참여자</h3><span id="participant-count" class="count-badge" aria-live="polite">0명</span></div>
-                    <p class="muted">닉네임을 눌러 공유한 음악을 만나보세요.</p>
                     <div id="participant-list"></div>
                 </aside>
             </div>
@@ -85,7 +94,13 @@
                 <div class="share-actions"><button class="primary" id="share-btn" type="button">내 플레이리스트 공유</button><button class="secondary" id="create-btn" type="button">+ 새로 만들기</button></div>
             </section>
             <aside class="panel chat" aria-labelledby="chat-heading">
+                <div class="chat-room-tabs" role="tablist" aria-label="채팅 라운지 선택">
+                    <button id="main-chat-tab" class="chat-room-tab" type="button" role="tab" aria-selected="true" aria-controls="main-chat-panel">메인 라운지</button>
+                    <button id="playlist-chat-tab" class="chat-room-tab" type="button" role="tab" aria-selected="false" aria-controls="playlist-chat-panel" tabindex="-1">개별 라운지</button>
+                </div>
+                <div id="main-chat-panel" class="chat-room-panel" role="tabpanel" aria-labelledby="main-chat-tab">
                 <div class="chat-heading"><h2 id="chat-heading">라운지 채팅</h2><span id="connection-status" class="connection-status" role="status">연결 대기</span></div>
+                <p class="chat-room-description">이 라운지의 모든 사람들과 이야기를 나눠보세요.</p>
                 <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="라운지 메시지"></div>
                 <section id="ai-result" class="ai-result hidden" aria-labelledby="ai-result-heading" aria-live="polite">
                     <div class="ai-result-head"><h3 id="ai-result-heading">🎧 AI 추천 <small class="muted">나에게만 보여요</small></h3><button type="button" id="ai-result-close" class="ai-close" aria-label="AI 추천 닫기">✕</button></div>
@@ -96,8 +111,16 @@
                     <p id="ai-save-feedback" class="feedback" role="status"></p>
                 </section>
                 <p id="ai-mode-hint" class="ai-mode-hint hidden" role="status">✨ AI 추천 모드 · 비워두고 Enter: 내 플레이리스트·좋아요한 곡과 비슷한 노래 · 분위기를 적고 Enter: AI가 골라줘요 (예: 비 오는 날 듣기 좋은 노래) · Esc로 취소</p>
-                <form id="chat-form"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button><button type="button" id="ai-recommend-btn" class="ai-btn" title="AI에게 노래 추천받기. 누르면 입력칸이 AI 요청용으로 바뀌어요." aria-pressed="false" disabled>✨ AI 추천</button></form>
+                <form id="chat-form" class="chat-composer"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button><button type="button" id="ai-recommend-btn" class="ai-btn" title="AI에게 노래 추천받기. 누르면 입력칸이 AI 요청용으로 바뀌어요." aria-pressed="false" disabled>✨ AI 추천</button></form>
                 <p id="chat-feedback" class="feedback" role="status"></p>
+                </div>
+                <div id="playlist-chat-panel" class="chat-room-panel" role="tabpanel" aria-labelledby="playlist-chat-tab" hidden>
+                    <div class="chat-heading"><h2>플레이리스트 채팅</h2></div>
+                    <p class="chat-room-description">같은 플레이리스트를 듣는 사람들과 이야기를 나눠보세요.</p>
+                    <div class="chat-playlist-context"><span>NOW LISTENING</span><strong id="playlist-chat-title">플레이리스트를 선택해주세요</strong></div>
+                    <div class="playlist-chat-empty"><span aria-hidden="true">♫</span><p id="playlist-chat-description">플레이리스트를 선택하면<br>개별 라운지를 확인할 수 있어요.</p></div>
+                    <div class="chat-composer"><input type="text" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" aria-label="개별 라운지 메시지"><button type="button" class="send" aria-label="개별 라운지 메시지 보내기">↑</button></div>
+                </div>
             </aside>
         </div>
     </section>
