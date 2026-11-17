@@ -33,6 +33,7 @@ function showAiTip() {
 }
 function hideAiTip() {
     $("ai-tip").hidden = true;
+    $("ai-tip").classList.remove("peek");
     try { localStorage.setItem(AI_TIP_KEY, "1"); } catch { /* ignore */ }
 }
 function composerParts(tabId = activeChatTab) {
@@ -465,6 +466,24 @@ async function requestAiRecommendation(request) {
 }
 [$("ai-recommend-btn"), $("playlist-ai-btn")].forEach((button) => button.addEventListener("click", () => { hideAiTip(); if (currentRoom && connected && !aiBusy) setAiMode(!aiMode); }));
 $("ai-tip-close").addEventListener("click", hideAiTip);
+// ✨ 버튼에 마우스를 올리거나 키보드로 이동하면 사용법 말풍선을 잠깐 보여줍니다(처음 안내를 닫은 뒤에도).
+function peekAiTip(on) {
+    const tip = $("ai-tip");
+    if (on) {
+        if (!tip.hidden || aiMode) return;
+        tip.classList.add("peek");
+        tip.hidden = false;
+    } else if (tip.classList.contains("peek")) {
+        tip.classList.remove("peek");
+        tip.hidden = true;
+    }
+}
+[$("ai-recommend-btn"), $("playlist-ai-btn")].forEach((button) => {
+    button.addEventListener("mouseenter", () => peekAiTip(true));
+    button.addEventListener("mouseleave", () => peekAiTip(false));
+    button.addEventListener("focus", () => peekAiTip(true));
+    button.addEventListener("blur", () => peekAiTip(false));
+});
 [$("chat-input"), $("playlist-chat-input")].forEach((input) => input.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && aiMode && !aiBusy) { event.preventDefault(); setAiMode(false); }
 }));
