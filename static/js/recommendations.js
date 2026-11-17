@@ -61,7 +61,7 @@ async function search() {
                 button.addEventListener('click', () => {
                     selected[index] = song;
                     list.replaceChildren();
-                    status.textContent = `선택됨 · ${song.title}`;
+                    status.textContent = `선택됨 · ${song.title}${song.artist ? ` (${song.artist})` : ''}`;
                     invalidate();
                 });
                 item.append(button);

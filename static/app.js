@@ -17,10 +17,30 @@ let aiBusy = false;
 let aiMode = false;
 let aiLastRequest = "";
 let aiSongs = [];
-let chatDraft = "";
-const CHAT_PLACEHOLDER = $("chat-input").placeholder;
-const CHAT_MAXLENGTH = $("chat-input").maxLength;
-const AI_PLACEHOLDER = "듣고 싶은 분위기 (비워두면 비슷한 곡 추천)";
+// 메인·개별 라운지 입력창. AI 추천은 지금 보고 있는 탭의 입력창에서 요청합니다.
+const COMPOSERS = {
+    "main-chat-tab": { form: "chat-form", input: "chat-input", toggle: "ai-recommend-btn" },
+    "playlist-chat-tab": { form: "playlist-chat-form", input: "playlist-chat-input", toggle: "playlist-ai-btn" },
+};
+let activeChatTab = "main-chat-tab";
+let aiParts = null; // AI 모드가 켜진 입력창
+// 라운지에 처음 들어왔을 때 AI 버튼 위에 사용법 말풍선을 한 번 보여줍니다.
+const AI_TIP_KEY = "musicLounge.aiTipSeen";
+function showAiTip() {
+    let seen = false;
+    try { seen = localStorage.getItem(AI_TIP_KEY) === "1"; } catch { /* 저장할 수 없으면 매번 보여줍니다 */ }
+    $("ai-tip").hidden = seen;
+}
+function hideAiTip() {
+    $("ai-tip").hidden = true;
+    try { localStorage.setItem(AI_TIP_KEY, "1"); } catch { /* ignore */ }
+}
+function composerParts(tabId = activeChatTab) {
+    const ids = COMPOSERS[tabId];
+    const form = $(ids.form);
+    return { form, input: $(ids.input), send: form.querySelector('[type="submit"]'), toggle: $(ids.toggle) };
+}
+const AI_PLACEHOLDER = "분위기 입력 / 비우면 내 플리 기반 추천";
 const AI_MAX_REQUEST = 100;
 const AI_TIMEOUT_MS = 300000; // the LLM and YouTube lookups can be slow; the server has its own limits
 let listeningParticipants = [];
@@ -45,7 +65,7 @@ function updateListeningPanel() {
     document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
     updateListeningControls();
     $("playlist-chat-title").textContent = listeningPlaylist?.title || "플레이리스트를 선택해주세요";
-    $("playlist-chat-description").textContent = listeningPlaylist ? "같은 음악을 듣는 사람들을 위한 채팅 공간입니다." : "플레이리스트를 선택하면 개별 라운지를 확인할 수 있어요.";
+    $("playlist-chat-description").textContent = listeningPlaylist ? "함께 음악을 듣는 사람들을 위한 채팅창입니다." : "플레이리스트를 선택해 채팅에 참여하세요.";
 }
 function resetListening() {
     selectChatTab("main-chat-tab");
@@ -57,6 +77,9 @@ function resetListening() {
 
 function feedback(error) { $("page-feedback").textContent = error.message; }
 function selectChatTab(id) {
+    if (aiMode && !aiBusy && id !== activeChatTab) setAiMode(false);
+    activeChatTab = id;
+    $(COMPOSERS[id].form).before($("ai-area")); // AI 결과·안내는 두 탭이 함께 씁니다
     ["main-chat-tab", "playlist-chat-tab"].forEach((tabId) => {
         const tab = $(tabId);
         const active = tabId === id;
@@ -82,7 +105,7 @@ function updateStatus(status) {
     $("connection-status").dataset.state = status;
     $("chat-input").disabled = !connected || aiBusy;
     $("chat-form").querySelector('[type="submit"]').disabled = !connected || aiBusy;
-    if (!aiBusy) $("ai-recommend-btn").disabled = !connected;
+    if (!aiBusy) $("ai-recommend-btn").disabled = $("playlist-ai-btn").disabled = !connected;
     if (!connected) {
         listeningParticipants = [];
         updateListeningPanel();
@@ -140,7 +163,9 @@ function enterRoom(room, name) {
     $("playlist-heading").textContent = "라운지의 음악";
     $("page-feedback").textContent = "";
     $("chat-feedback").textContent = "";
+    $("ai-feedback").textContent = "";
     setAiMode(false);
+    showAiTip();
     $("chat-input").value = "";
     closeAiResult();
     $("chat-messages").replaceChildren();
@@ -239,8 +264,15 @@ function renderPlaylists() {
             finally { like.disabled = false; }
         });
         const collect = collectButton(playlist, { className: "lounge-collect", onMessage: (text) => { $("collect-feedback").textContent = text; } });
+        const together = playlist.sample ? null : el("button", "together-btn", "함께 듣기");
+        if (together) {
+            together.type = "button";
+            together.dataset.playlistId = playlist.id;
+            together.setAttribute("aria-label", `${playlist.title} 함께 듣기`);
+            together.addEventListener("click", () => joinListenTogether(playlist));
+        }
         const buttons = el("div", "playlist-buttons");
-        buttons.append(like, ...(collect ? [collect] : []));
+        buttons.append(like, ...(together ? [together] : []), ...(collect ? [collect] : []));
         item.append(info, buttons);
         $("playlist-list").append(item);
     });
@@ -258,6 +290,13 @@ function renderPlaylists() {
         if (!playlist) clearPlayer();
         else if (JSON.stringify([playlist.title, playlist.songs, playlist.user]) !== playerVersion) showPlaylist(playlist);
     }
+}
+// 함께 듣기 참여 버튼. 방 만들기·입장·재생 동기화는 함께 듣기 API(/api/playlist-rooms) 연동 때
+// document의 "listen-together" 이벤트를 받아 처리하고 event.preventDefault()를 호출하면 됩니다.
+function joinListenTogether(playlist) {
+    const event = new CustomEvent("listen-together", { detail: { room: currentRoom, playlist }, cancelable: true });
+    if (!document.dispatchEvent(event)) return;
+    $("collect-feedback").textContent = `‘${playlist.title}’ 함께 듣기는 곧 연결될 예정이에요.`;
 }
 function highlightMember() {
     document.querySelectorAll(".participant").forEach((button) => {
@@ -303,7 +342,7 @@ function appendMessage(message, history = false) {
 }
 $("chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (aiMode) { await requestAiRecommendation($("chat-input").value.trim().slice(0, AI_MAX_REQUEST)); return; }
+    if (aiMode && aiParts?.form === event.currentTarget) { await requestAiRecommendation(aiParts.input.value.trim().slice(0, AI_MAX_REQUEST)); return; }
     const text = $("chat-input").value.trim();
     if (!text || !connected) return;
     const room = currentRoom;
@@ -319,6 +358,11 @@ $("chat-form").addEventListener("submit", async (event) => {
     } catch (error) { $("chat-feedback").textContent = error.message; }
     finally { button.disabled = !connected; }
 });
+$("playlist-chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (aiMode && aiParts?.form === event.currentTarget) { await requestAiRecommendation(aiParts.input.value.trim().slice(0, AI_MAX_REQUEST)); return; }
+    // 개별 라운지 메시지 전송은 함께 듣기(/api/playlist-rooms) 연동 때 연결합니다.
+});
 // ---- AI recommendation: button -> the chat input becomes a request box -> Enter ----
 function closeAiResult() {
     aiSongs = [];
@@ -330,14 +374,16 @@ function closeAiResult() {
 function setAiMode(on) {
     if (on === aiMode) return;
     aiMode = on;
-    const input = $("chat-input");
-    const send = $("chat-form").querySelector('[type="submit"]');
-    const toggle = $("ai-recommend-btn");
-    $("chat-form").classList.toggle("ai-mode", on);
-    $("ai-mode-hint").classList.toggle("hidden", !on);
+    const parts = on ? composerParts() : aiParts;
+    aiParts = on ? parts : null;
+    if (!parts) return;
+    const { form, input, send, toggle } = parts;
+    form.classList.toggle("ai-mode", on);
     toggle.setAttribute("aria-pressed", String(on));
     if (on) {
-        chatDraft = input.value; // keep a half-written chat message
+        // keep what was in the input (a half-written message) and restore it when AI mode ends
+        Object.assign(input.dataset, { draft: input.value, placeholder: input.placeholder, label: input.getAttribute("aria-label") || "", maxlength: input.maxLength, required: input.required });
+        Object.assign(send.dataset, { text: send.textContent, label: send.getAttribute("aria-label") || "" });
         input.value = "";
         input.placeholder = AI_PLACEHOLDER;
         input.maxLength = AI_MAX_REQUEST;
@@ -345,18 +391,19 @@ function setAiMode(on) {
         input.setAttribute("aria-label", "AI에게 요청할 내용");
         send.textContent = "✨";
         send.setAttribute("aria-label", "AI에게 추천 요청하기");
-        toggle.textContent = "취소";
+        toggle.textContent = "✕";
+        toggle.setAttribute("aria-label", "AI 추천 취소");
         input.focus();
     } else {
-        input.value = chatDraft;
-        chatDraft = "";
-        input.placeholder = CHAT_PLACEHOLDER;
-        input.maxLength = CHAT_MAXLENGTH;
-        input.required = true;
-        input.setAttribute("aria-label", "채팅 메시지");
-        send.textContent = "↑";
-        send.setAttribute("aria-label", "메시지 보내기");
-        toggle.textContent = "✨ AI 추천";
+        input.value = input.dataset.draft || "";
+        input.placeholder = input.dataset.placeholder;
+        input.maxLength = Number(input.dataset.maxlength);
+        input.required = input.dataset.required === "true";
+        input.setAttribute("aria-label", input.dataset.label);
+        send.textContent = send.dataset.text;
+        send.setAttribute("aria-label", send.dataset.label);
+        toggle.textContent = "✨";
+        toggle.setAttribute("aria-label", "AI 추천");
     }
 }
 function formatDuration(seconds) {
@@ -392,14 +439,12 @@ function showAiResult(result) {
 async function requestAiRecommendation(request) {
     const room = currentRoom;
     if (!room || !connected || aiBusy) return;
-    const input = $("chat-input");
-    const send = $("chat-form").querySelector('[type="submit"]');
-    const toggle = $("ai-recommend-btn");
+    const { input, send, toggle } = aiParts || composerParts();
     aiBusy = true;
     input.disabled = send.disabled = toggle.disabled = $("ai-again-btn").disabled = true;
-    toggle.textContent = "추천 중…";
-    input.placeholder = request ? "AI가 노래를 고르는 중이에요…" : "비슷한 곡을 찾는 중이에요…";
-    $("chat-feedback").textContent = "";
+    toggle.textContent = "…";
+    input.placeholder = request ? "AI가 노래를 고르는 중이에요…" : "내 플리 기반으로 찾는 중이에요…";
+    $("ai-feedback").textContent = "";
     try {
         const result = await api(`/api/rooms/${room}/ai-recommend`, "POST", { request }, AbortSignal.timeout(AI_TIMEOUT_MS));
         if (room !== currentRoom) return;
@@ -408,20 +453,21 @@ async function requestAiRecommendation(request) {
         setAiMode(false);
     } catch (error) {
         if (room !== currentRoom) return;
-        $("chat-feedback").textContent = error.name === "TimeoutError" ? "추천이 너무 오래 걸려요. 잠시 후 다시 시도해주세요." : error.message;
+        $("ai-feedback").textContent = error.name === "TimeoutError" ? "추천이 너무 오래 걸려요. 잠시 후 다시 시도해주세요." : error.message;
     } finally {
         aiBusy = false;
         input.disabled = send.disabled = toggle.disabled = !connected;
         $("ai-again-btn").disabled = false;
-        toggle.textContent = aiMode ? "취소" : "✨ AI 추천";
-        input.placeholder = aiMode ? AI_PLACEHOLDER : CHAT_PLACEHOLDER;
+        toggle.textContent = aiMode ? "✕" : "✨";
+        if (aiMode) input.placeholder = AI_PLACEHOLDER;
         if (aiMode && connected) input.focus(); // on an error the typed request stays so it can be retried
     }
 }
-$("ai-recommend-btn").addEventListener("click", () => { if (currentRoom && connected && !aiBusy) setAiMode(!aiMode); });
-$("chat-input").addEventListener("keydown", (event) => {
+[$("ai-recommend-btn"), $("playlist-ai-btn")].forEach((button) => button.addEventListener("click", () => { hideAiTip(); if (currentRoom && connected && !aiBusy) setAiMode(!aiMode); }));
+$("ai-tip-close").addEventListener("click", hideAiTip);
+[$("chat-input"), $("playlist-chat-input")].forEach((input) => input.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && aiMode && !aiBusy) { event.preventDefault(); setAiMode(false); }
-});
+}));
 $("ai-result-close").addEventListener("click", closeAiResult);
 $("ai-again-btn").addEventListener("click", () => requestAiRecommendation(aiLastRequest));
 $("ai-save-btn").addEventListener("click", async () => {

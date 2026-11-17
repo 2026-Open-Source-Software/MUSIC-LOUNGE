@@ -244,12 +244,11 @@ dialog { width: min(560px, 94vw); }
 @media (max-width: 540px) { .import-controls { flex-direction: column; } }
 
 /* AI song recommendation (private to the requester). Colors follow the dark lounge theme in css/workspace.css. */
-.ai-btn { flex-shrink: 0; white-space: nowrap; min-height: 46px; background: #ffffff05; border: 1px solid #ffffff24; border-radius: 999px; color: #dce3d6; font-size: 13px; padding: 0 16px; cursor: pointer; }
+.ai-btn { flex-shrink: 0; display: inline-grid; place-items: center; width: 46px; height: 46px; padding: 0; background: #ffffff05; border: 1px solid #ffffff24; border-radius: 50%; color: #dce3d6; font-size: 18px; line-height: 1; cursor: pointer; }
 .ai-btn:hover:not(:disabled) { background: #ffffff10; }
 .ai-btn:disabled { opacity: .45; cursor: not-allowed; }
 .ai-btn[aria-pressed="true"] { background: #c3d9af18; border-color: #c3d9af66; color: #c3d9af; }
 .chat form.ai-mode input { background: #121612; color: #edf2e7; border-color: #c3d9af88; box-shadow: 0 0 0 3px #c3d9af22; }
-.ai-mode-hint { margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: #c3d9af; }
 .ai-result { margin: 0 0 12px; padding: 14px 16px; background: #121812; color: #c0caba; border: 1px solid #c3d9af24; border-radius: 18px; max-height: 420px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #526149 transparent; }
 .ai-result-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ai-result h3 { margin: 0; font-size: 14px; color: #cfdfbf; }
@@ -275,3 +274,19 @@ dialog { width: min(560px, 94vw); }
 .collect-button.lounge-collect { background: #c3d9af; color: #172016; border: 1px solid #c3d9af; border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .collect-button.lounge-collect:disabled { background: transparent; color: #c3d9af; border-color: #c3d9af44; cursor: default; }
 .song-finder .collect-button:disabled { background: #ffffff08; color: #c3d9af; border-color: #c3d9af44; opacity: 1; }
+
+/* 라운지 플레이리스트의 함께 듣기 버튼 */
+.playlist-buttons { flex-wrap: wrap; justify-content: flex-end; }
+.together-btn { background: transparent; color: #c3d9af; border: 1px solid #c3d9af66; border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.together-btn:hover { background: #c3d9af18; }
+
+/* 라운지에 처음 들어왔을 때 AI 버튼 위에 뜨는 사용법 말풍선 */
+.ai-tip { position: relative; margin: 0 0 12px auto; width: max-content; max-width: min(300px, 100%); box-sizing: border-box; padding: 12px 14px 10px; background: #26301f; border: 1px solid #c3d9af66; border-radius: 14px; color: #dfe8d6; font-size: 12px; line-height: 1.6; box-shadow: 0 8px 22px #0007; }
+.ai-tip[hidden] { display: none; }
+.ai-tip::after { content: ""; position: absolute; right: 16px; bottom: -7px; width: 12px; height: 12px; background: #26301f; border-right: 1px solid #c3d9af66; border-bottom: 1px solid #c3d9af66; transform: rotate(45deg); }
+.ai-tip strong { display: block; margin-bottom: 4px; color: #c3d9af; font-size: 13px; }
+.ai-tip p { margin: 0; }
+.ai-tip .ai-tip-sub { margin-top: 2px; color: #a4ada0; font-size: 11px; }
+.ai-tip-close { display: block; margin: 8px 0 0 auto; background: #c3d9af; color: #172016; border: 0; border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
+/* AI 모드 안내 문구가 좁은 입력칸에서도 보이도록 조금 작게 */
+.chat-composer.ai-mode input::placeholder { font-size: 12px; }
