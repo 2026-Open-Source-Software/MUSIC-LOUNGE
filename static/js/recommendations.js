@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { collectButton } from './collect.js';
 
 const form = document.querySelector('#song-finder-form');
 let selected = [];
@@ -20,7 +21,7 @@ const node = (tag, text, className) => {
 function invalidate() {
     resultVersion++;
     results.replaceChildren();
-    const complete = selected.length >= 2 && selected.every(Boolean);
+    const complete = selected.length >= 1 && selected.every(Boolean);
     const unique = new Set(selected.filter(Boolean).map(song => song.video_id)).size;
     submit.disabled = !complete || unique !== selected.length;
     feedback.textContent = complete && unique !== selected.length
@@ -35,7 +36,7 @@ async function search() {
     invalidate();
     const titles = input.value.split(',').map(title => title.trim());
     if (titles.length > 3 || titles.some(title => !title || title.length > 120)) {
-        feedback.textContent = '곡 제목을 쉼표로 구분해 최대 3곡까지 입력해주세요. 각 제목은 120자 이하여야 합니다.';
+        feedback.textContent = '노래 제목이나 가수를 쉼표로 구분해 최대 3개까지 입력해주세요. 각 검색어는 120자 이하여야 합니다.';
         return;
     }
     selected = titles.map(() => null);
@@ -62,7 +63,6 @@ async function search() {
                     list.replaceChildren();
                     status.textContent = `선택됨 · ${song.title}`;
                     invalidate();
-                    if (selected.length === 1) feedback.textContent = '공통 플레이리스트 추천을 위해 한 곡 이상 더 입력해주세요.';
                 });
                 item.append(button);
                 list.append(item);
@@ -71,10 +71,7 @@ async function search() {
             if (error.name !== 'AbortError' && version === searchVersion) status.textContent = error.message;
         }
     }));
-    if (version === searchVersion) {
-        invalidate();
-        if (titles.length === 1) feedback.textContent = '공통 플레이리스트 추천에는 2~3곡이 필요합니다.';
-    }
+    if (version === searchVersion) invalidate();
 }
 document.querySelector('.song-search').addEventListener('click', search);
 input.addEventListener('input', () => {
@@ -93,14 +90,16 @@ form.addEventListener('submit', async event => {
     const version = ++resultVersion;
     submit.disabled = true;
     results.replaceChildren();
-    feedback.textContent = '선택한 곡들이 함께 담긴 목록을 찾고 있어요…';
+    feedback.textContent = selected.length === 1 ? '선택한 곡이 담긴 목록을 찾고 있어요…' : '선택한 곡들이 함께 담긴 목록을 찾고 있어요…';
     try {
-        const params = new URLSearchParams({ first: selected[0].video_id, second: selected[1].video_id });
+        const params = new URLSearchParams(selected.map((song, i) => [['first', 'second', 'third'][i], song.video_id]));
         const response = await api(`/api/discovery/playlists?${params}`);
         const playlists = response.playlists.filter(playlist => selected.every(song => playlist.songs.some(track => track.video_id === song.video_id)));
         for (const playlist of playlists) playlist.matched_songs = [...selected];
         if (version !== resultVersion) return;
-        feedback.textContent = playlists.length ? `${playlists.length}개의 공통 플레이리스트를 찾았어요.` : '선택한 곡이 모두 포함된 공유 플레이리스트가 없습니다. 다른 곡 조합을 선택해보세요.';
+        feedback.textContent = playlists.length
+            ? `${playlists.length}개의 ${selected.length === 1 ? '' : '공통 '}플레이리스트를 찾았어요.`
+            : (selected.length === 1 ? '선택한 곡이 담긴 플레이리스트가 없습니다. 다른 곡을 선택해보세요.' : '선택한 곡이 모두 포함된 플레이리스트가 없습니다. 다른 곡 조합을 선택해보세요.');
         for (const playlist of playlists) {
             const card = node('article', '', 'recommendation-card');
             const cover = node('div', '♫', 'recommendation-cover');
@@ -111,14 +110,14 @@ form.addEventListener('submit', async event => {
             image.addEventListener('error', () => image.remove(), { once: true });
             cover.append(image);
             const body = node('div');
-            body.append(node('h3', playlist.title), node('small', `${playlist.user} · ${playlist.song_count}곡`));
+            body.append(node('h3', playlist.title), node('small', `${playlist.user} · ${playlist.song_count}곡 · ♥ ${playlist.likes ?? 0}`));
             const matched = node('ul');
             for (const song of playlist.matched_songs) matched.append(node('li', `✓ ${song.title}`));
             const detail = node('button', '상세보기 ↗');
             detail.type = 'button';
             detail.addEventListener('click', () => {
                 document.querySelector('#recommendation-detail-title').textContent = playlist.title;
-                document.querySelector('#recommendation-detail-meta').textContent = `${playlist.user} · 전체 ${playlist.song_count}곡`;
+                document.querySelector('#recommendation-detail-meta').textContent = `${playlist.user} · 전체 ${playlist.song_count}곡 · 좋아요 ${playlist.likes ?? 0}개`;
                 const songs = document.querySelector('#recommendation-detail-songs');
                 songs.replaceChildren();
                 for (const song of playlist.songs) {
@@ -132,7 +131,12 @@ form.addEventListener('submit', async event => {
                 }
                 dialog.showModal();
             });
-            body.append(matched, detail);
+            const copyStatus = node('p', '', 'finder-status');
+            copyStatus.setAttribute('role', 'status');
+            const copy = collectButton(playlist, { className: 'recommendation-import', onMessage: text => { copyStatus.textContent = text; } });
+            const actions = node('div', '', 'recommendation-actions');
+            actions.append(detail, ...(copy ? [copy] : []));
+            body.append(matched, actions, copyStatus);
             card.append(cover, body);
             results.append(card);
         }

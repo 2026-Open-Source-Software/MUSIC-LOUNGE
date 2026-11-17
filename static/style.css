@@ -269,3 +269,9 @@ dialog { width: min(560px, 94vw); }
 .ai-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .ai-actions button { font-size: 13px; padding: 8px 12px; }
 .ai-result .feedback:empty { display: none; }
+
+/* 라운지·플레이리스트 찾기의 수집하기 버튼 */
+.playlist-buttons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.collect-button.lounge-collect { background: #c3d9af; color: #172016; border: 1px solid #c3d9af; border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.collect-button.lounge-collect:disabled { background: transparent; color: #c3d9af; border-color: #c3d9af44; cursor: default; }
+.song-finder .collect-button:disabled { background: #ffffff08; color: #c3d9af; border-color: #c3d9af44; opacity: 1; }

@@ -34,9 +34,9 @@
                 </div>
                 <form id="song-finder-form">
                     <div class="song-slot">
-                        <label for="finder-songs">노래 제목</label>
-                        <div class="song-query"><input id="finder-songs" type="search" maxlength="364" placeholder="예: 노래 제목 1, 노래 제목 2, 노래 제목 3" autocomplete="off" aria-describedby="finder-input-help"><button type="button" class="song-search">검색</button></div>
-                        <p id="finder-input-help" class="finder-status">쉼표(,)로 구분해 최대 3곡까지 입력해주세요.</p>
+                        <label for="finder-songs">노래 제목 또는 가수</label>
+                        <div class="song-query"><input id="finder-songs" type="search" maxlength="364" placeholder="예: 밤편지, 아이유, Hype Boy" autocomplete="off" aria-describedby="finder-input-help"><button type="button" class="song-search">검색</button></div>
+                        <p id="finder-input-help" class="finder-status">노래 제목이나 가수를 쉼표(,)로 구분해 최대 3개까지 입력해주세요.</p>
                         <div id="finder-song-choices"></div>
                     </div>
                     <button id="finder-submit" type="submit" disabled>플레이리스트 찾기 ↗</button>
@@ -89,6 +89,7 @@
                 <p class="muted" id="playlist-description">참여자를 선택하거나 라운지의 공유 목록을 둘러보세요.</p>
                 <button class="secondary" id="show-all" type="button">모든 공유 목록 보기</button>
                 <div id="playlist-list"></div>
+                <p id="collect-feedback" class="feedback" role="status" aria-live="polite"></p>
                 <div id="player" class="player"><p>♫ 플레이리스트를 선택해주세요.</p></div>
                 <div class="share-actions"><button class="primary" id="share-btn" type="button">내 플레이리스트 공유</button><button class="secondary" id="create-btn" type="button">+ 새로 만들기</button></div>
             </section>
