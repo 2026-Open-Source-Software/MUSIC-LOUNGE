@@ -210,6 +210,56 @@ def init_db():
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room, id);")
 
+        # 플레이리스트 함께 듣기 방 테이블
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS playlist_rooms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lounge_room TEXT NOT NULL,
+            playlist_id INTEGER NOT NULL,
+            host_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'PAUSED', 'CLOSED')),
+            current_track_index INTEGER NOT NULL DEFAULT 0,
+            current_video_id TEXT,
+            current_position_sec REAL NOT NULL DEFAULT 0.0,
+            is_playing INTEGER NOT NULL DEFAULT 1 CHECK(is_playing IN (0, 1)),
+            synced_at TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (lounge_room) REFERENCES lounges(room) ON DELETE CASCADE,
+            FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+            FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        """)
+
+        # 방 내부 전용 채팅 테이블
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS room_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            nickname TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (room_id) REFERENCES playlist_rooms(id) ON DELETE CASCADE
+        );
+        """)
+
+        
+
+        db.execute("CREATE INDEX IF NOT EXISTS idx_playlist_rooms_lounge ON playlist_rooms(lounge_room, status);")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_playlist_rooms_host ON playlist_rooms(host_id);")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_room_messages_room_id ON room_messages(room_id, id);")
+
+        db.execute("""
+        CREATE TRIGGER IF NOT EXISTS update_playlist_room_timestamp
+        AFTER UPDATE ON playlist_rooms
+        FOR EACH ROW
+        BEGIN
+            UPDATE playlist_rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+        END;
+        """)
+
 if __name__ == "__main__":
      init_db()
      print("[DB 초기화 완료] 4개 핵심 테이블 및 채팅 테이블, 트리거 구축 완료")
