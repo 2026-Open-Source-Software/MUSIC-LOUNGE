@@ -325,10 +325,14 @@ def accessible_track(playlist_id, video_id):
         or p.get('owner_id') == session.get('user_id')
     )
     if not is_owner and not p.get('shared_rooms'):
-        return False
+        with connect_db() as db:
+            active_room = db.execute(
+                "SELECT 1 FROM playlist_rooms WHERE playlist_id = ? AND status != 'CLOSED' LIMIT 1",
+                (playlist_id,),
+            ).fetchone()
+        if not active_room:
+            return False
     return any(isinstance(song, dict) and song.get('video_id') == video_id for song in p['songs'])
-
-
 @app.route('/api/playlists/<int:playlist_id>/audio/<video_id>', methods=['GET', 'POST'])
 def track_audio(playlist_id, video_id):
     if not session.get('user_pk'):
@@ -613,7 +617,7 @@ def events(room):
 
 @app.post('/api/rooms/<room>/listening')
 def listening(room):
-    if not session.get('user_id'):
+    if not session.get('user_pk'):
         return auth_error()
     if error := room_error(room):
         return error
@@ -1048,25 +1052,10 @@ def playlist_room_events(room_id):
     session_id = session['session_id']
     member = library.member_id(user_id)
 
-    connection = hub.playlist_room_join(room_id, token, user_id, nickname, session_id)
-
-    # 방 입장 즉시 1회 전송되는 스냅샷 (최근 대화 100건 messages 필드 포함)
-    snapshot = {
-        'room_id': room_id,
-        'title': r['title'],
-        'playlist_title': r['playlist_title'],
-        'playback': {
-            'current_track_index': cur_idx,
-            'current_track': cur_track,
-            'current_position_sec': realtime_sec,
-            'is_playing': bool(r['is_playing']),
-            'synced_at': r['synced_at'],
-        },
-        'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else [],
-        'participants': hub.playlist_room_participants(room_id),
-        'messages': room_chat_list,
-        'self': member,
-    }
+    try:
+        connection = hub.playlist_room_join(room_id, token, user_id, nickname, session_id)
+    except ValueError:
+        return jsonify({'error': '이미 사용 중인 연결입니다.'}), 409
 
     @stream_with_context
     def stream():

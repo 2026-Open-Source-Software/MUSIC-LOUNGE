@@ -115,11 +115,29 @@
                 <p id="chat-feedback" class="feedback" role="status"></p>
                 </div>
                 <div id="playlist-chat-panel" class="chat-room-panel" role="tabpanel" aria-labelledby="playlist-chat-tab" hidden>
-                    <div class="chat-heading"><h2>플레이리스트 채팅</h2></div>
-                    <p class="chat-room-description">같은 플레이리스트를 듣는 사람들과 이야기를 나눠보세요.</p>
-                    <div class="chat-playlist-context"><span>NOW LISTENING</span><strong id="playlist-chat-title">플레이리스트를 선택해주세요</strong></div>
-                    <div class="playlist-chat-empty"><span aria-hidden="true">♫</span><p id="playlist-chat-description">플레이리스트를 선택하면<br>개별 라운지를 확인할 수 있어요.</p></div>
-                    <div class="chat-composer"><input type="text" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" aria-label="개별 라운지 메시지"><button type="button" class="send" aria-label="개별 라운지 메시지 보내기">↑</button></div>
+                    <div class="chat-heading">
+                        <h2>플레이리스트 채팅</h2>
+                        <span id="room-connection-status" class="connection-status" role="status">대기 중</span>
+                    </div>
+                    <p class="chat-room-description">같은 플레이리스트를 듣는 사람들과 실시간으로 음악을 동기화하고 대화해보세요.</p>
+                    <div class="chat-playlist-context">
+                        <div>
+                            <span>NOW LISTENING</span>
+                            <strong id="playlist-chat-title">플레이리스트를 선택해주세요</strong>
+                        </div>
+                        <div id="playlist-room-actions"></div>
+                    </div>
+                    <div id="playlist-room-list"></div>
+                    <div id="playlist-chat-empty" class="playlist-chat-empty">
+                        <span aria-hidden="true">♫</span>
+                        <p id="playlist-chat-description">플레이리스트를 선택해 방을 만들거나<br>열려 있는 개별 라운지에 입장해보세요.</p>
+                    </div>
+                    <div id="playlist-chat-messages" class="chat-messages hidden" role="log" aria-live="polite" aria-relevant="additions" aria-label="개별 라운지 메시지"></div>
+                    <form id="playlist-chat-form" class="chat-composer">
+                        <input id="playlist-chat-input" type="text" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="개별 라운지 메시지" disabled>
+                        <button type="submit" class="send" aria-label="개별 라운지 메시지 보내기" disabled>↑</button>
+                    </form>
+                    <p id="playlist-chat-feedback" class="feedback" role="status"></p>
                 </div>
             </aside>
         </div>

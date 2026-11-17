@@ -31,7 +31,7 @@ export class RoomConnection {
         this.onStatus("connecting");
         const source = new EventSource(`/api/rooms/${room}/events?connection=${token}`);
         this.source = source;
-        for (const kind of ["snapshot", "presence", "message", "playlists_changed", "closed"]) {
+        for (const kind of ["snapshot", "presence", "message", "playlists_changed", "playlist_room_created", "closed"]) {
             source.addEventListener(kind, (event) => {
                 if (source !== this.source) return;
                 if (kind === "closed") { this.leave(); window.location.assign("/login"); return; }
@@ -62,3 +62,54 @@ export class RoomConnection {
     }
 }
 
+export class PlaylistRoomConnection {
+    constructor(onEvent, onStatus) {
+        this.onEvent = onEvent;
+        this.onStatus = onStatus;
+        this.roomId = null;
+        this.retry = 0;
+    }
+    join(roomId) {
+        this.leave();
+        this.roomId = roomId;
+        this.retry = 0;
+        this.connect();
+    }
+    connect() {
+        const roomId = this.roomId;
+        if (!roomId) return;
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, "0")).join("");
+        this.token = token;
+        this.onStatus?.("connecting");
+        const source = new EventSource(`/api/playlist-rooms/${roomId}/events?connection=${token}`);
+        this.source = source;
+        for (const kind of ["room_snapshot", "room_sync", "room_message", "room_presence", "room_closed", "closed"]) {
+            source.addEventListener(kind, (event) => {
+                if (source !== this.source) return;
+                if (kind === "closed") { this.leave(); return; }
+                if (kind === "room_snapshot") { this.retry = 0; this.onStatus?.("connected"); }
+                this.onEvent(kind, JSON.parse(event.data));
+            });
+        }
+        source.onerror = () => {
+            if (source !== this.source) return;
+            source.close();
+            this.release(roomId, token);
+            this.source = null;
+            this.onStatus?.("reconnecting");
+            this.timer = setTimeout(() => this.connect(), Math.min(10000, 1500 * 2 ** this.retry++));
+        };
+    }
+    release(roomId, token) {
+        if (roomId && token) {
+            fetch(`/api/playlist-rooms/${roomId}/leave`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connection: token }), keepalive: true }).catch(() => {});
+        }
+    }
+    leave() {
+        clearTimeout(this.timer);
+        this.source?.close();
+        this.release(this.roomId, this.token);
+        this.roomId = this.source = this.token = null;
+        this.onStatus?.("offline");
+    }
+}

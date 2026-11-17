@@ -89,6 +89,10 @@ class RoomHub:
             for c in list(self.connections.values()):
                 if c['session_id'] == session_id:
                     self.remove(c['token'])
+            for room_id, conns in list(self.playlist_room_conns.items()):
+                for c in list(conns.values()):
+                    if c['session_id'] == session_id:
+                        self.playlist_room_leave(room_id, c['token'])
 
     def contains(self, room, user_id, session_id):
         with self.lock:
@@ -106,6 +110,14 @@ class RoomHub:
                     rooms.add(c['room'])
             for room in rooms:
                 self.presence(room)
+            for room_id, conns in self.playlist_room_conns.items():
+                changed = False
+                for c in conns.values():
+                    if c['user_id'] == user_id:
+                        c['nickname'] = nickname
+                        changed = True
+                if changed:
+                    self.playlist_room_presence(room_id)
 
     def playlist_room_participants(self, room_id):
         """방에 접속 중인 참여자 목록 (다중 탭 접속 시 동일 사용자 중복 제거)"""
