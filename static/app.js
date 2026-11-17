@@ -1,6 +1,6 @@
 import { YoutubeImporter } from "./js/youtube-import.js";
 import { api, RoomConnection } from "./js/api.js";
-import { el, renderPlayer, trackList } from "./js/playlist-ui.js";
+import { el, renderPlayer } from "./js/playlist-ui.js";
 const $ = (id) => document.getElementById(id);
 const importer = new YoutubeImporter({ dialog: "create-dialog", prefix: "create-import", songs: "playlist-songs", title: "playlist-title", submit: "create-submit" });
 let currentRoom = null;
@@ -34,7 +34,7 @@ function reportListening() {
     listeningRequest = listeningRequest.catch(() => {}).then(async () => {
         if (room !== currentRoom || token !== connection.token || !connected) return;
         try { await api(`/api/rooms/${room}/listening`, "POST", { connection: token, playlist_id }); }
-        catch (error) { if (room === currentRoom && token === connection.token) $("listening-count").textContent = "청취 인원을 확인하지 못했어요."; }
+        catch (error) { /* Retry presence reporting on the next playback update. */ }
     });
 }
 function updateListeningPanel() {
@@ -42,25 +42,39 @@ function updateListeningPanel() {
     $("listening-title").textContent = listeningPlaylist?.title || "음악을 골라보세요";
     $("listening-state").textContent = !listeningPlaylist ? "플레이리스트를 선택하면 여기에 표시됩니다." : playbackActive ? "지금 재생 중 · " + listeningPlaylist.user : "재생 대기 · 곡을 선택해 재생하세요.";
     document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
-    $("listening-mute").disabled = !audio;
-    $("listening-mute").setAttribute("aria-pressed", String(Boolean(audio?.muted)));
-    $("listening-mute").textContent = audio?.muted ? "음소거 해제" : "음소거";
-    $("listening-tracks-toggle").disabled = !listeningPlaylist;
-    $("listening-tracks-toggle").textContent = listeningPlaylist ? `곡 목록 · ${listeningPlaylist.songs.length}` : "곡 목록";
-    const count = listeningParticipants.filter((person) => person.listening?.includes(selectedPlaylist)).length;
-    $("listening-count").textContent = connected ? `함께 듣는 사람 ${count}명` : "청취 인원 · 연결 대기";
+    updateListeningControls();
+    $("playlist-chat-title").textContent = listeningPlaylist?.title || "플레이리스트를 선택해주세요";
+    $("playlist-chat-description").textContent = listeningPlaylist ? "같은 음악을 듣는 사람들을 위한 채팅 공간입니다." : "플레이리스트를 선택하면 개별 라운지를 확인할 수 있어요.";
 }
 function resetListening() {
+    selectChatTab("main-chat-tab");
     listeningPlaylist = null;
     playbackActive = false;
-    $("listening-tracks").replaceChildren();
-    $("listening-tracks").classList.add("hidden");
-    $("listening-tracks-toggle").setAttribute("aria-expanded", "false");
     updateListeningPanel();
     reportListening();
 }
 
 function feedback(error) { $("page-feedback").textContent = error.message; }
+function selectChatTab(id) {
+    ["main-chat-tab", "playlist-chat-tab"].forEach((tabId) => {
+        const tab = $(tabId);
+        const active = tabId === id;
+        tab.setAttribute("aria-selected", String(active));
+        tab.tabIndex = active ? 0 : -1;
+        $(tab.getAttribute("aria-controls")).hidden = !active;
+    });
+}
+const chatTabs = [$("main-chat-tab"), $("playlist-chat-tab")];
+chatTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectChatTab(tab.id));
+    tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index;
+        selectChatTab(chatTabs[next].id);
+        chatTabs[next].focus();
+    });
+});
 function updateStatus(status) {
     connected = status === "connected";
     $("connection-status").textContent = { connecting: "연결 중…", connected: "● 실시간 연결", reconnecting: "재연결 중…", offline: "연결 대기" }[status];
@@ -189,7 +203,6 @@ function showPlaylist(playlist) {
     listeningPlaylist = playlist;
     playerVersion = JSON.stringify([playlist.title, playlist.songs, playlist.user]);
     renderPlayer($("player"), playlist);
-    $("listening-tracks").replaceChildren(trackList(playlist.songs));
     updateListeningPanel();
     reportListening();
 }
@@ -256,14 +269,32 @@ function appendMessage(message, history = false) {
     const box = $("chat-messages");
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
     box.querySelector(".chat-empty")?.remove();
+    const sentAt = new Date(message.created_at);
+    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(sentAt);
+    const previousMessage = box.querySelector(".message:last-of-type");
+    if (previousMessage?.dataset.day !== day) {
+        const divider = el("div", "chat-date-divider");
+        const date = el("time", "", sentAt.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", weekday: "long" }));
+        date.dateTime = day;
+        divider.append(date);
+        box.append(divider);
+    }
     const item = el("div", `message${message.member_id === self ? " own-message" : ""}`);
+    item.dataset.day = day;
     const meta = el("div", "message-meta");
-    const time = el("time", "muted", new Date(message.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+    const time = el("time", "muted", sentAt.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }));
     time.dateTime = message.created_at;
     meta.append(el("strong", "", message.user), time);
     item.append(meta, el("p", "", message.text));
     box.append(item);
-    if (box.children.length > 100) box.firstElementChild.remove();
+    const messages = box.querySelectorAll(".message");
+    if (messages.length > 100) {
+        const oldest = messages[0];
+        const divider = oldest.previousElementSibling;
+        const next = oldest.nextElementSibling;
+        oldest.remove();
+        if (divider?.classList.contains("chat-date-divider") && (!next || next.classList.contains("chat-date-divider"))) divider.remove();
+    }
     if (!history && (nearBottom || message.member_id === self)) scrollChat();
 }
 $("chat-form").addEventListener("submit", async (event) => {
@@ -456,13 +487,41 @@ $("player").addEventListener("playback-state", (event) => {
     updateListeningPanel();
     if (changed) reportListening();
 });
-$("listening-mute").addEventListener("click", () => {
+function formatPlaybackTime(value) {
+    const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function updateListeningControls() {
     const audio = $("player").querySelector("audio");
-    if (audio) { audio.muted = !audio.muted; updateListeningPanel(); }
+    const ready = Boolean(audio?.getAttribute("src"));
+    const duration = Number.isFinite(audio?.duration) ? audio.duration : 0;
+    $("listening-play").disabled = !ready;
+    $("listening-play").textContent = audio && !audio.paused ? "\u275a\u275a" : "\u25b6";
+    $("listening-play").setAttribute("aria-label", audio && !audio.paused ? "\uc77c\uc2dc \uc815\uc9c0" : "\uc7ac\uc0dd");
+    $("listening-time").textContent = formatPlaybackTime(audio?.currentTime);
+    $("listening-duration").textContent = formatPlaybackTime(duration);
+    $("listening-seek").max = duration;
+    $("listening-seek").value = audio?.currentTime || 0;
+    $("listening-seek").disabled = !ready || !duration;
+    $("listening-volume").disabled = !audio;
+    $("listening-volume").value = audio?.muted ? 0 : audio?.volume ?? 1;
+}
+["timeupdate", "durationchange", "loadedmetadata", "emptied", "play", "pause", "ended", "volumechange"].forEach((type) => {
+    $("player").addEventListener(type, updateListeningControls, true);
 });
-$("listening-tracks-toggle").addEventListener("click", () => {
-    const open = $("listening-tracks").classList.toggle("hidden") === false;
-    $("listening-tracks-toggle").setAttribute("aria-expanded", String(open));
+$("listening-play").addEventListener("click", async () => {
+    const audio = $("player").querySelector("audio");
+    if (!audio) return;
+    if (audio.paused) { try { await audio.play(); } catch (error) { feedback(error); } }
+    else audio.pause();
+});
+$("listening-seek").addEventListener("input", (event) => {
+    const audio = $("player").querySelector("audio");
+    if (audio && Number.isFinite(audio.duration)) audio.currentTime = Number(event.target.value);
+});
+$("listening-volume").addEventListener("input", (event) => {
+    const audio = $("player").querySelector("audio");
+    if (audio) { audio.muted = false; audio.volume = Number(event.target.value); }
 });
 window.addEventListener("pagehide", () => connection.leave());
 window.addEventListener("pageshow", (event) => { if (event.persisted && currentRoom) connection.join(currentRoom); });

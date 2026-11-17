@@ -26,10 +26,6 @@ async function loadLibrary() {
         if (!playlists.length) {
             const empty = element("div", "panel empty-library");
             empty.append(element("div", "avatar", "♫"), element("h3", "", "첫 플레이리스트를 만들어보세요"), element("p", "muted", "유튜브 링크를 모아 내 계정에 저장하고, 라운지에서 공유하세요."));
-            const create = element("button", "primary", "+ 플레이리스트 만들기");
-            create.type = "button";
-            create.addEventListener("click", () => openEditor());
-            empty.append(create);
             library.append(empty);
         }
         playlists.forEach((playlist) => {
