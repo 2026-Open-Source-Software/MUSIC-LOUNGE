@@ -85,10 +85,10 @@ dialog label { display: block; font-size: 12px; font-weight: 600; margin: 20px 0
 dialog label input, dialog textarea { display: block; margin-top: 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
 footer { text-align: center; color: #818c83; font-size: 10px; letter-spacing: .3px; padding: 64px 20px 28px; }
-[data-room="ballad"] { --room-background: url("backgrounds/ballad.jpg"); }
-[data-room="rnb"] { --room-background: url("backgrounds/rnb.jpg"); }
-[data-room="hiphop"] { --room-background: url("backgrounds/hiphop.jpg"); }
-[data-room="indie"] { --room-background: url("backgrounds/indie.jpg"); }
+[data-room="ballad"] { --room-background: url("/static/backgrounds/ballad.jpg"); }
+[data-room="rnb"] { --room-background: url("/static/backgrounds/rnb.jpg"); }
+[data-room="hiphop"] { --room-background: url("/static/backgrounds/hiphop.jpg"); }
+[data-room="indie"] { --room-background: url("/static/backgrounds/indie.jpg"); }
 .room-card[data-room] { background-image: linear-gradient(180deg, #0d1c1510 10%, #101b16d9 100%), var(--room-background); background-size: cover; background-position: center; }
 body[data-room] { background: #e8ece5; isolation: isolate; }
 body[data-room]::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: linear-gradient(180deg, #f2f4edc4, #e9ede5e6), var(--room-background); background-position: center; background-size: cover; }
