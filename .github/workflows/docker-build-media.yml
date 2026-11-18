@@ -34,5 +34,5 @@ jobs:
 
       - name: 이미지 안 도구 확인
         run: |
-          docker run --rm music-lounge-ytdlp:ci python -c "import flask, yt_dlp; print('flask', flask.__version__, '/ yt-dlp', yt_dlp.version.__version__)"
+          docker run --rm music-lounge-ytdlp:ci python -c "import flask, yt_dlp; from importlib.metadata import version as v; print('flask', v('flask'), '/ yt-dlp', v('yt-dlp'))"
           docker run --rm music-lounge-ytdlp:ci ffmpeg -version | head -1
