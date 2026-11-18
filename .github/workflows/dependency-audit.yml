@@ -1,0 +1,42 @@
+name: 의존성 보안 점검
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (${{ matrix.target.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - label: 웹 앱
+            file: requirements.txt
+            blocking: true
+          # 미디어 서버는 고정 버전(flask 3.0.2 등)에 알려진 취약점이 있어 결과만 보고합니다.
+          - label: 미디어 서버
+            file: ytdlp_server/requirements.txt
+            blocking: false
+    continue-on-error: ${{ !matrix.target.blocking }}
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip-audit 설치
+        run: pip install pip-audit
+
+      - name: 알려진 취약점 점검
+        run: pip-audit -r ${{ matrix.target.file }} --desc

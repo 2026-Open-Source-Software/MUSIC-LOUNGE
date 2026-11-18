@@ -1,0 +1,35 @@
+name: 프론트 JS 문법 검사
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-check:
+    name: static 폴더 JS 문법 확인
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: node --check 실행
+        run: |
+          set -e
+          count=0
+          while IFS= read -r -d '' file; do
+            echo "검사: $file"
+            node --check "$file"
+            count=$((count + 1))
+          done < <(find static -name '*.js' -print0)
+          echo "JS 파일 $count개 문법 확인 완료"
