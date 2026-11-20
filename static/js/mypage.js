@@ -42,6 +42,9 @@ async function loadLibrary() {
             const card = element("article", `panel library-card${playlist.collected_from ? " collected-card" : ""}`);
             const cover = element("div", "library-cover");
             cover.dataset.room = playlist.room;
+            // 첫 곡의 YouTube 썸네일을 커버로 씁니다. YouTube 곡이 없으면 장르 사진이 그대로 보여요.
+            const firstVideo = playlist.songs.find((song) => song && /^[A-Za-z0-9_-]{11}$/.test(song.video_id || ""));
+            if (firstVideo) cover.style.setProperty("--room-background", `url("https://i.ytimg.com/vi/${firstVideo.video_id}/hqdefault.jpg")`);
             cover.append(element("span", "room-badge", playlist.room_name));
             if (playlist.collected_from) cover.append(element("span", "collected-badge", "수집"));
             const content = element("div", "library-content");
