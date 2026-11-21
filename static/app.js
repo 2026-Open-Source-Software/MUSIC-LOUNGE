@@ -37,6 +37,57 @@ let listeningRequest = Promise.resolve();
 // 개별 라운지 (함께 듣기 방) 상태
 let togetherRooms = [];
 let activeTogetherRoom = null; // { room_id, title, playlist_id, is_host, host, participants }
+let lastRoomSync = null;
+let revertingGuestSeek = false;
+let seekingSlider = false;
+
+function isTogetherGuest() {
+    return Boolean(activeTogetherRoom && !activeTogetherRoom.is_host);
+}
+
+function notifyGuestPlaylistLock() {
+    const msg = "개별 라운지 참여 중에는 플레이리스트를 변경할 수 없어요. 개별 라운지에서 '방 나가기'를 누른 뒤 변경해주세요.";
+    $("page-feedback").textContent = msg;
+    if ($("playlist-chat-feedback")) $("playlist-chat-feedback").textContent = msg;
+}
+
+function computeExpectedRoomSec(syncData) {
+    if (!syncData) return 0;
+    const base = Number(syncData.current_position_sec) || 0;
+    if (!syncData.is_playing || !syncData.synced_at) return Math.max(0, base);
+    const syncedMs = Date.parse(syncData.synced_at);
+    if (!Number.isFinite(syncedMs)) return Math.max(0, base);
+    return Math.max(0, base + Math.max(0, (Date.now() - syncedMs) / 1000));
+}
+
+function applyTogetherPlayerLock() {
+    const locked = isTogetherGuest();
+    const player = $("player");
+    if (player) {
+        player.querySelectorAll(".mp3-controls button, .track-play").forEach((btn) => {
+            btn.disabled = locked;
+            if (locked) btn.title = "개별 라운지에서는 호스트만 곡을 변경할 수 있어요.";
+            else btn.removeAttribute("title");
+        });
+    }
+    updateListeningControls();
+}
+
+function enforceGuestTimeLock(audio) {
+    if (!isTogetherGuest() || revertingGuestSeek || !lastRoomSync || !audio || audio.readyState < 1) return;
+    const expected = computeExpectedRoomSec(lastRoomSync);
+    const clamped = Number.isFinite(audio.duration) && audio.duration > 0
+        ? Math.min(expected, Math.max(0, audio.duration - 0.5))
+        : expected;
+    const tolerance = lastRoomSync.is_playing ? 1.5 : 0.4;
+    if (Math.abs((audio.currentTime || 0) - clamped) > tolerance) {
+        revertingGuestSeek = true;
+        audio.currentTime = clamped;
+        const msg = "개별 라운지에서는 호스트만 재생 시간을 이동할 수 있어요.";
+        if ($("playlist-chat-feedback")) $("playlist-chat-feedback").textContent = msg;
+        setTimeout(() => { revertingGuestSeek = false; }, 200);
+    }
+}
 
 function reportListening() {
     if (!connected || !currentRoom) return;
@@ -52,14 +103,13 @@ function reportListening() {
 function updateListeningPanel() {
     $("listening-title").textContent = listeningPlaylist?.title || "음악을 골라보세요";
     if (activeTogetherRoom) {
-        $("listening-state").textContent = `${activeTogetherRoom.is_host ? "호스트 DJ로 진행 중" : "함께 듣기 동기화 중"} · ${activeTogetherRoom.title}`;
+        $("listening-state").textContent = `${activeTogetherRoom.is_host ? "호스트 DJ로 진행 중" : "함께 듣기 동기화 중 (호스트 제어)"} · ${activeTogetherRoom.title}`;
     } else {
         $("listening-state").textContent = !listeningPlaylist ? "플레이리스트를 선택하면 여기에 표시됩니다." : playbackActive ? "지금 재생 중 · " + listeningPlaylist.user : "재생 대기 · 곡을 선택해 재생하세요.";
     }
     document.querySelector(".mini-record").classList.toggle("is-playing", playbackActive);
     updateListeningControls();
 
-    // NOW LISTENING 함께 듣는 사람 목록 업데이트
     const audienceCount = document.querySelector(".listening-audience summary span");
     const audienceList = document.querySelector(".listening-audience-menu ul");
     if (audienceCount && audienceList) {
@@ -151,9 +201,13 @@ const togetherConnection = new PlaylistRoomConnection((kind, data) => {
         activeTogetherRoom.participants = data.participants || [];
         updateRoomStatus("connected");
         updateListeningPanel();
-        if (!activeTogetherRoom.is_host && data.playback) {
-            $("player").syncPlayback?.(data.playback);
+        if (data.playback) {
+            lastRoomSync = data.playback;
+            if (!activeTogetherRoom.is_host) {
+                $("player").syncPlayback?.(data.playback);
+            }
         }
+        applyTogetherPlayerLock();
         const box = $("playlist-chat-messages");
         if (box) {
             box.replaceChildren();
@@ -165,8 +219,10 @@ const togetherConnection = new PlaylistRoomConnection((kind, data) => {
             box.scrollTop = box.scrollHeight;
         }
     } else if (kind === "room_sync") {
+        lastRoomSync = data;
         if (!activeTogetherRoom.is_host) {
             $("player").syncPlayback?.(data);
+            applyTogetherPlayerLock();
         }
         refreshTogetherRooms();
     } else if (kind === "room_presence") {
@@ -270,10 +326,15 @@ function renderPlaylistChatPanel() {
 async function createTogetherRoom() {
     if (!currentRoom || !listeningPlaylist || listeningPlaylist.sample) return;
     $("playlist-chat-feedback").textContent = "";
+    const audio = $("player").querySelector("audio");
+    const position_sec = audio && Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const is_playing = Boolean(audio && !audio.paused && !audio.ended && audio.readyState >= 2);
     try {
         const res = await api(`/api/rooms/${currentRoom}/playlist-rooms`, "POST", {
             playlist_id: listeningPlaylist.id,
             title: `${listeningPlaylist.title} · 함께 듣기`,
+            position_sec,
+            is_playing,
         });
         await joinTogetherRoom(res.data.room_id);
         await refreshTogetherRooms();
@@ -284,6 +345,7 @@ async function createTogetherRoom() {
 
 async function joinTogetherRoom(roomId) {
     $("playlist-chat-feedback").textContent = "";
+    $("page-feedback").textContent = "";
     try {
         const res = await api(`/api/playlist-rooms/${roomId}`);
         const detail = res.data;
@@ -295,19 +357,19 @@ async function joinTogetherRoom(roomId) {
             host: detail.host,
             participants: detail.participants || [],
         };
+        lastRoomSync = detail.playback || null;
         let targetPl = roomPlaylists.find((p) => p.id === detail.playlist_id);
         if (!targetPl) {
             await refreshPlaylists();
             targetPl = roomPlaylists.find((p) => p.id === detail.playlist_id);
         }
         if (targetPl && selectedPlaylist !== targetPl.id) {
-            showPlaylist(targetPl);
+            showPlaylist(targetPl, { force: true });
         }
         selectChatTab("playlist-chat-tab");
         updateListeningPanel();
-        if (!detail.is_host && detail.playback) {
-            $("player").syncPlayback?.(detail.playback);
-        }
+        applyTogetherPlayerLock();
+        renderPlaylists();
         togetherConnection.join(roomId);
     } catch (error) {
         $("playlist-chat-feedback").textContent = error.message;
@@ -319,13 +381,17 @@ async function leaveTogetherRoom(byUser = true) {
     const { room_id, is_host } = activeTogetherRoom;
     togetherConnection.leave();
     activeTogetherRoom = null;
+    lastRoomSync = null;
     roomMessageIds.clear();
     $("playlist-chat-messages")?.replaceChildren();
     if (byUser && is_host) {
         try { await api(`/api/playlist-rooms/${room_id}`, "DELETE"); } catch {}
     }
+    $("page-feedback").textContent = "";
     updateRoomStatus("offline");
+    applyTogetherPlayerLock();
     updateListeningPanel();
+    renderPlaylists();
     refreshTogetherRooms();
 }
 
@@ -431,6 +497,10 @@ function renderParticipants(participants) {
         button.setAttribute("aria-pressed", String(person.member_id === selectedMember));
         button.append(el("span", "participant-avatar", person.nickname.slice(0, 1)), el("span", "participant-name", person.nickname), el("small", "muted", person.member_id === self ? "나" : "●"));
         button.addEventListener("click", () => {
+            if (isTogetherGuest()) {
+                notifyGuestPlaylistLock();
+                return;
+            }
             selectedMember = person.member_id;
             $("playlist-heading").textContent = `${person.nickname}님의 음악`;
             renderParticipants(participants);
@@ -441,7 +511,11 @@ function renderParticipants(participants) {
     });
 }
 
-function clearPlayer() {
+function clearPlayer({ force = false } = {}) {
+    if (!force && isTogetherGuest()) {
+        notifyGuestPlaylistLock();
+        return;
+    }
     selectedPlaylist = null;
     $("player").replaceChildren(el("p", "", "♫ 목록에서 플레이리스트를 선택해주세요."));
     resetListening();
@@ -458,29 +532,47 @@ async function refreshPlaylists() {
     } catch (error) { feedback(error); }
 }
 
-function showPlaylist(playlist) {
+function showPlaylist(playlist, { force = false } = {}) {
+    if (!force && isTogetherGuest() && playlist.id !== activeTogetherRoom.playlist_id) {
+        notifyGuestPlaylistLock();
+        return;
+    }
     playbackActive = false;
     selectedPlaylist = playlist.id;
     listeningPlaylist = playlist;
     playerVersion = JSON.stringify([playlist.title, playlist.songs, playlist.user]);
     renderPlayer($("player"), playlist);
+    applyTogetherPlayerLock();
     updateListeningPanel();
     reportListening();
 }
 
 function renderPlaylists() {
+    const guestLocked = isTogetherGuest();
     const visible = selectedMember ? roomPlaylists.filter((p) => p.member_id === selectedMember) : roomPlaylists;
-    $("playlist-description").textContent = selectedMember ? "이 사용자가 현재 라운지에 공유한 플레이리스트입니다." : "참여자의 닉네임을 클릭하거나 아래 공유 목록을 선택하세요.";
+    $("playlist-description").textContent = guestLocked
+        ? "개별 라운지 참여 중에는 플레이리스트를 변경할 수 없어요. 변경하려면 개별 라운지에서 '방 나가기'를 눌러주세요."
+        : selectedMember
+            ? "이 사용자가 현재 라운지에 공유한 플레이리스트입니다."
+            : "참여자의 닉네임을 클릭하거나 아래 공유 목록을 선택하세요.";
     $("playlist-list").replaceChildren();
     visible.forEach((playlist) => {
         const item = el("div", "playlist-item");
         const info = el("div", "item-text");
         const open = el("button", "user-btn", playlist.title);
         open.type = "button";
+        if (guestLocked && playlist.id !== activeTogetherRoom.playlist_id) {
+            open.setAttribute("aria-disabled", "true");
+            open.title = "개별 라운지를 나가야 플레이리스트를 변경할 수 있어요.";
+        }
         open.addEventListener("click", () => showPlaylist(playlist));
         const author = el("button", "author-button", `${playlist.user} · ${playlist.songs.length}곡${playlist.sample ? " · 예시 목록" : ""}`);
         author.type = "button";
         author.addEventListener("click", () => {
+            if (isTogetherGuest()) {
+                notifyGuestPlaylistLock();
+                return;
+            }
             selectedMember = playlist.member_id;
             $("playlist-heading").textContent = `${playlist.user}님의 음악`;
             clearPlayer();
@@ -510,14 +602,18 @@ function renderPlaylists() {
     roomPlaylists.slice(0, 3).forEach((playlist, i) => {
         const button = el("button", "compact-rank");
         button.type = "button";
+        if (guestLocked && playlist.id !== activeTogetherRoom.playlist_id) {
+            button.setAttribute("aria-disabled", "true");
+            button.title = "개별 라운지를 나가야 플레이리스트를 변경할 수 있어요.";
+        }
         button.append(el("span", "rank-num", String(i + 1)), el("span", "rank-title", playlist.title), el("small", "", `♥ ${playlist.likes}`));
         button.addEventListener("click", () => showPlaylist(playlist));
         $("ranking-list").append(button);
     });
     if (selectedPlaylist) {
         const playlist = roomPlaylists.find((p) => p.id === selectedPlaylist);
-        if (!playlist) clearPlayer();
-        else if (JSON.stringify([playlist.title, playlist.songs, playlist.user]) !== playerVersion) showPlaylist(playlist);
+        if (!playlist) clearPlayer({ force: true });
+        else if (JSON.stringify([playlist.title, playlist.songs, playlist.user]) !== playerVersion) showPlaylist(playlist, { force: true });
     }
 }
 
@@ -728,6 +824,10 @@ $("ai-save-btn").addEventListener("click", async () => {
     try {
         const songs = aiSongs.map(({ title, url, artist, duration }) => ({ title, url, artist, duration }));
         const playlist = await api("/api/me/playlists", "POST", { title, songs, room: currentRoom });
+        if (isTogetherGuest()) {
+            $("ai-save-feedback").textContent = `‘${playlist.title}’으로 내 계정에 저장했어요. 개별 라운지를 나간 뒤 재생할 수 있어요.`;
+            return;
+        }
         $("ai-save-feedback").textContent = `‘${playlist.title}’으로 저장했어요. 아래 플레이어에서 바로 들을 수 있어요. 라운지 공유는 ‘내 플레이리스트 공유’에서 할 수 있어요.`;
         selectedPlaylist = null;
         resetListening();
@@ -739,7 +839,17 @@ $("ai-save-btn").addEventListener("click", async () => {
 });
 
 $("back-btn").addEventListener("click", leaveRoom);
-$("show-all").addEventListener("click", () => { selectedMember = null; $("playlist-heading").textContent = "라운지의 음악"; clearPlayer(); renderPlaylists(); highlightMember(); });
+$("show-all").addEventListener("click", () => {
+    if (isTogetherGuest()) {
+        notifyGuestPlaylistLock();
+        return;
+    }
+    selectedMember = null;
+    $("playlist-heading").textContent = "라운지의 음악";
+    clearPlayer();
+    renderPlaylists();
+    highlightMember();
+});
 $("create-btn").addEventListener("click", () => { $("create-form").reset(); importer.reset(); $("create-feedback").textContent = ""; $("create-dialog").showModal(); });
 $("cancel-btn").addEventListener("click", () => $("create-dialog").close());
 $("create-form").addEventListener("submit", async (event) => {
@@ -794,6 +904,15 @@ $("player").addEventListener("playback-state", (event) => {
     if (changed) reportListening();
 });
 
+// 비호스트 참여자의 임의 재생 시간 이동(seek) 차단
+["seeking", "seeked"].forEach((type) => {
+    $("player").addEventListener(type, (event) => {
+        if (event.target instanceof HTMLAudioElement) {
+            enforceGuestTimeLock(event.target);
+        }
+    }, true);
+});
+
 // 호스트가 플레이어를 조작할 때 방 참여자들에게 실시간 동기화 전송
 $("player").addEventListener("host-control", async (event) => {
     if (!activeTogetherRoom || !activeTogetherRoom.is_host) return;
@@ -817,14 +936,18 @@ function updateListeningControls() {
     const audio = $("player").querySelector("audio");
     const ready = Boolean(audio?.getAttribute("src"));
     const duration = Number.isFinite(audio?.duration) ? audio.duration : 0;
+    const guestLocked = isTogetherGuest();
     $("listening-play").disabled = !ready;
     $("listening-play").textContent = audio && !audio.paused ? "\u275a\u275a" : "\u25b6";
     $("listening-play").setAttribute("aria-label", audio && !audio.paused ? "\uc77c\uc2dc \uc815\uc9c0" : "\uc7ac\uc0dd");
-    $("listening-time").textContent = formatPlaybackTime(audio?.currentTime);
+    if (!seekingSlider) {
+        $("listening-time").textContent = formatPlaybackTime(audio?.currentTime);
+        $("listening-seek").value = audio?.currentTime || 0;
+    }
     $("listening-duration").textContent = formatPlaybackTime(duration);
     $("listening-seek").max = duration;
-    $("listening-seek").value = audio?.currentTime || 0;
-    $("listening-seek").disabled = !ready || !duration;
+    $("listening-seek").disabled = !ready || !duration || guestLocked;
+    $("listening-seek").title = guestLocked ? "개별 라운지에서는 호스트만 재생 시간을 이동할 수 있어요." : "";
     $("listening-volume").disabled = !audio;
     $("listening-volume").value = audio?.muted ? 0 : audio?.volume ?? 1;
 }
@@ -834,10 +957,41 @@ function updateListeningControls() {
 $("listening-play").addEventListener("click", async () => {
     const audio = $("player").querySelector("audio");
     if (!audio) return;
+    if (isTogetherGuest()) {
+        if (lastRoomSync?.is_playing && audio.paused) {
+            $("player").syncPlayback?.(lastRoomSync);
+        } else {
+            if ($("playlist-chat-feedback")) $("playlist-chat-feedback").textContent = "개별 라운지에서는 호스트가 재생을 제어해요. 소리를 끄려면 음량을 조절해주세요.";
+        }
+        return;
+    }
     if (audio.paused) { try { await audio.play(); } catch (error) { feedback(error); } }
     else audio.pause();
 });
+["pointerdown", "mousedown", "touchstart"].forEach((type) => {
+    $("listening-seek").addEventListener(type, () => {
+        if (!isTogetherGuest()) seekingSlider = true;
+    });
+});
+["pointerup", "mouseup", "touchend", "blur"].forEach((type) => {
+    $("listening-seek").addEventListener(type, () => { seekingSlider = false; });
+});
 $("listening-seek").addEventListener("input", (event) => {
+    if (isTogetherGuest()) {
+        const audio = $("player").querySelector("audio");
+        event.target.value = audio?.currentTime || 0;
+        return;
+    }
+    $("listening-time").textContent = formatPlaybackTime(Number(event.target.value));
+});
+$("listening-seek").addEventListener("change", (event) => {
+    seekingSlider = false;
+    if (isTogetherGuest()) {
+        const audio = $("player").querySelector("audio");
+        event.target.value = audio?.currentTime || 0;
+        if ($("playlist-chat-feedback")) $("playlist-chat-feedback").textContent = "개별 라운지에서는 호스트만 재생 시간을 이동할 수 있어요.";
+        return;
+    }
     const audio = $("player").querySelector("audio");
     if (audio && Number.isFinite(audio.duration)) audio.currentTime = Number(event.target.value);
 });

@@ -33,7 +33,6 @@ class RoomHub:
                     try:
                         c['queue'].put_nowait((kind, data))
                     except Full:
-                        # A stalled subscriber reconnects and receives a fresh snapshot.
                         self.remove(c['token'])
 
     def presence(self, room):

@@ -333,6 +333,8 @@ def accessible_track(playlist_id, video_id):
         if not active_room:
             return False
     return any(isinstance(song, dict) and song.get('video_id') == video_id for song in p['songs'])
+
+
 @app.route('/api/playlists/<int:playlist_id>/audio/<video_id>', methods=['GET', 'POST'])
 def track_audio(playlist_id, video_id):
     if not session.get('user_pk'):
@@ -399,6 +401,7 @@ def search_playlists():
         results = [p for p in results if q in p['title'].lower() or q in p['user'].lower()]
     results.sort(key=lambda p: (-p['likes'], p['id']))
     return jsonify([library.public(p) for p in results[:20]])
+
 
 @app.get('/api/discovery/songs')
 def discovery_songs():
@@ -705,8 +708,6 @@ def list_playlist_rooms(room):
             'playlist_id': r['playlist_id'],
             'playlist_title': r['playlist_title'],
             'host': {
-                'user_pk': r['host_id'],
-                'user_id': r['host_user_id'],
                 'nickname': r['host_nickname'],
                 'member_id': library.member_id(r['host_user_id']),
             },
@@ -744,7 +745,16 @@ def create_playlist_room(room):
         if not songs:
             return jsonify({'error': '수록곡이 비어있는 플레이리스트입니다.'}), 400
 
-        first_track = songs[0]
+        try:
+            init_idx = int(data.get('track_index', 0))
+            if not (0 <= init_idx < len(songs)):
+                init_idx = 0
+            init_pos = max(0.0, float(data.get('position_sec', 0.0)))
+        except (TypeError, ValueError):
+            init_idx, init_pos = 0, 0.0
+        init_playing = 1 if data.get('is_playing', True) else 0
+
+        first_track = songs[init_idx]
         first_video_id = first_track.get('video_id') if isinstance(first_track, dict) else None
         room_title = title if (1 <= len(title) <= 50) else f"{session['nickname']}님의 함께 듣기 방"
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -753,11 +763,10 @@ def create_playlist_room(room):
             INSERT INTO playlist_rooms (
                 lounge_room, playlist_id, host_id, title,
                 current_track_index, current_video_id, current_position_sec, is_playing, synced_at
-            ) VALUES (?, ?, ?, ?, 0, ?, 0.0, 1, ?)
-        """, (room, playlist_id, session['user_pk'], room_title, first_video_id, now_iso))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (room, playlist_id, session['user_pk'], room_title, init_idx, first_video_id, init_pos, init_playing, now_iso))
         new_room_id = cur.lastrowid
 
-    # 라운지 전체에 새 방 개설 알림 브로드캐스트
     hub.publish(room, 'playlist_room_created', {'room': room, 'room_id': new_room_id, 'title': room_title})
 
     return jsonify({
@@ -812,7 +821,7 @@ def get_playlist_room_detail(room_id):
     cur_track = songs[cur_idx] if 0 <= cur_idx < len(songs) else None
     duration = cur_track.get('duration', 0) if isinstance(cur_track, dict) else 0
 
-    # 경과 시간 반영한 동기화 재생 초 계산
+    now_iso = datetime.now(timezone.utc).isoformat()
     realtime_sec = compute_synchronized_position(
         r['current_position_sec'],
         r['is_playing'],
@@ -820,7 +829,6 @@ def get_playlist_room_detail(room_id):
         duration,
     )
 
-    # 현재 곡 이후의 재생 예정 목록 (대기열)
     upcoming_tracks = songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else []
     participants = hub.playlist_room_participants(room_id)
     is_host = (session['user_pk'] == r['host_id'])
@@ -835,8 +843,6 @@ def get_playlist_room_detail(room_id):
             'playlist_title': r['playlist_title'],
             'is_host': is_host,
             'host': {
-                'user_pk': r['host_id'],
-                'user_id': r['host_user_id'],
                 'nickname': r['host_nickname'],
                 'member_id': library.member_id(r['host_user_id']),
             },
@@ -845,7 +851,7 @@ def get_playlist_room_detail(room_id):
                 'current_track': cur_track,
                 'current_position_sec': realtime_sec,
                 'is_playing': bool(r['is_playing']),
-                'synced_at': r['synced_at'],
+                'synced_at': now_iso,
             },
             'upcoming_tracks': upcoming_tracks,
             'all_tracks_count': len(songs),
@@ -868,7 +874,6 @@ def control_playlist_room(room_id):
         if not r or r['status'] == 'CLOSED':
             return jsonify({'error': '방을 찾을 수 없습니다.'}), 404
 
-        # 호스트 권한 검증
         if r['host_id'] != session['user_pk']:
             return jsonify({'error': '호스트만 재생을 제어할 수 있습니다.'}), 403
 
@@ -898,10 +903,11 @@ def control_playlist_room(room_id):
                 cur_pos = max(0.0, float(data.get('position_sec', 0.0)))
             elif action == 'change_track':
                 new_idx = int(data.get('track_index', 0))
-                if 0 <= new_idx < len(songs):
-                    cur_idx = new_idx
-                    cur_pos = 0.0
-                    is_playing = 1
+                if not (0 <= new_idx < len(songs)):
+                    raise ValueError()
+                cur_idx = new_idx
+                cur_pos = 0.0
+                is_playing = 1
             elif action == 'next_track':
                 if cur_idx + 1 < len(songs):
                     cur_idx += 1
@@ -914,6 +920,8 @@ def control_playlist_room(room_id):
                     is_playing = 1
             else:
                 raise library.ValidationError('올바른 제어 액션을 지정해주세요.')
+        except library.ValidationError:
+            raise
         except (TypeError, ValueError):
             raise library.ValidationError('재생 위치 또는 트랙 번호가 올바르지 않습니다.')
 
@@ -937,9 +945,7 @@ def control_playlist_room(room_id):
         'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else [],
     }
 
-    # 방 접속 중인 모든 사용자에게 실시간 동기화 브로드캐스트
     hub.publish_playlist_room(room_id, 'room_sync', sync_payload)
-
     return jsonify({'success': True, 'data': sync_payload})
 
 
@@ -1005,7 +1011,6 @@ def send_room_message(room_id):
         'created_at': now_iso,
     }
 
-    # 방 내부 참여자에게만 실시간 푸시
     hub.publish_playlist_room(room_id, 'room_message', msg_payload)
     return jsonify(msg_payload), 201
 
@@ -1036,13 +1041,13 @@ def playlist_room_events(room_id):
         if not r or r['status'] == 'CLOSED':
             return jsonify({'error': '방을 찾을 수 없습니다.'}), 404
 
-        # 방 내부 최근 채팅 100건 조회하여 스냅샷에 포함
         room_chat_list = get_room_chat_history(db, room_id)
 
     songs = unpack_songs(r['songs'])
     cur_idx = r['current_track_index']
     cur_track = songs[cur_idx] if 0 <= cur_idx < len(songs) else None
     duration = cur_track.get('duration', 0) if isinstance(cur_track, dict) else 0
+    now_iso = datetime.now(timezone.utc).isoformat()
     realtime_sec = compute_synchronized_position(
         r['current_position_sec'], r['is_playing'], r['synced_at'], duration
     )
@@ -1056,6 +1061,23 @@ def playlist_room_events(room_id):
         connection = hub.playlist_room_join(room_id, token, user_id, nickname, session_id)
     except ValueError:
         return jsonify({'error': '이미 사용 중인 연결입니다.'}), 409
+
+    snapshot = {
+        'room_id': room_id,
+        'title': r['title'],
+        'playlist_title': r['playlist_title'],
+        'playback': {
+            'current_track_index': cur_idx,
+            'current_track': cur_track,
+            'current_position_sec': realtime_sec,
+            'is_playing': bool(r['is_playing']),
+            'synced_at': now_iso,
+        },
+        'upcoming_tracks': songs[cur_idx + 1:] if cur_idx + 1 < len(songs) else [],
+        'participants': hub.playlist_room_participants(room_id),
+        'messages': room_chat_list,
+        'self': member,
+    }
 
     @stream_with_context
     def stream():

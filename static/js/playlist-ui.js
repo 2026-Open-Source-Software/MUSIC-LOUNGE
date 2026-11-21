@@ -33,7 +33,7 @@ export function renderPlayer(container, playlist) {
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
     const audio = el("audio", "mp3-audio"); audio.controls = true; audio.preload = "none";
 
-    let index = -1, controller, syncing = false;
+    let index = -1, controller, syncing = false, pendingSync = null, seekTimer = null;
 
     const emitHostControl = (action, extra = {}) => {
         if (syncing) return;
@@ -59,7 +59,12 @@ export function renderPlayer(container, playlist) {
         if (!syncing && !audio.ended && audio.readyState >= 1) emitHostControl("pause");
     });
     audio.addEventListener("seeked", () => {
-        if (!syncing && audio.readyState >= 1) emitHostControl("seek");
+        if (syncing || audio.readyState < 1) return;
+        clearTimeout(seekTimer);
+        const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        seekTimer = setTimeout(() => {
+            if (!syncing) emitHostControl("seek", { position_sec: pos });
+        }, 150);
     });
 
     const prev = el("button", "secondary", "← 이전"), all = el("button", "primary play-all", "▶ 전체 재생"), next = el("button", "secondary", "다음 →");
@@ -79,6 +84,29 @@ export function renderPlayer(container, playlist) {
         if (!Number.isFinite(syncedMs)) return Math.max(0, base);
         const elapsed = Math.max(0, (loadedAtMs - syncedMs) / 1000);
         return Math.max(0, base + elapsed);
+    };
+
+    const applyToLoadedAudio = async (syncData, signal = null) => {
+        syncing = true;
+        const targetSec = computeSyncedSec(syncData, Date.now());
+        const clamped = Number.isFinite(audio.duration) && audio.duration > 0
+            ? Math.min(targetSec, Math.max(0, audio.duration - 0.5))
+            : targetSec;
+        const threshold = syncData.action === "seek" ? 0.5 : 1.5;
+        if (Math.abs((audio.currentTime || 0) - clamped) >= threshold) {
+            audio.currentTime = clamped;
+        }
+        if (syncData.is_playing) {
+            status.textContent = "호스트와 실시간 동기화 재생 중";
+            if (audio.paused) {
+                try { await audio.play(); }
+                catch { if (!signal?.aborted) status.textContent = "자동 재생이 차단되었습니다. 아래 ▶ 재생 버튼을 한 번 눌러주세요."; }
+            }
+        } else {
+            if (!audio.paused) audio.pause();
+            status.textContent = "호스트가 일시정지했습니다.";
+        }
+        setTimeout(() => { syncing = false; }, 250);
     };
 
     async function play(song, syncOptions = null) {
@@ -111,31 +139,17 @@ export function renderPlayer(container, playlist) {
             audio.src = info.url;
             audio.load();
             if (syncOptions) {
-                const applySync = async () => {
-                    syncing = true;
-                    const targetSec = computeSyncedSec(syncOptions, Date.now());
-                    if (Number.isFinite(audio.duration) && audio.duration > 0) {
-                        audio.currentTime = Math.min(targetSec, Math.max(0, audio.duration - 0.5));
-                    } else {
-                        audio.currentTime = targetSec;
-                    }
-                    if (syncOptions.is_playing) {
-                        status.textContent = "호스트와 실시간 동기화 재생 중";
-                        try { await audio.play(); }
-                        catch { if (!signal.aborted) status.textContent = "자동 재생이 차단되었습니다. 아래 ▶ 재생 버튼을 한 번 눌러주세요."; }
-                    } else {
-                        audio.pause();
-                        status.textContent = "호스트가 일시정지했습니다.";
-                    }
-                    setTimeout(() => { syncing = false; }, 150);
+                const onReady = async () => {
+                    if (signal.aborted || !audio.isConnected) return;
+                    await applyToLoadedAudio(pendingSync || syncOptions, signal);
                 };
-                if (audio.readyState >= 1) await applySync();
-                else audio.addEventListener("loadedmetadata", applySync, { once: true });
+                if (audio.readyState >= 1) await onReady();
+                else audio.addEventListener("loadedmetadata", onReady, { once: true });
             } else {
                 status.textContent = "MP3 준비 완료";
                 try { await audio.play(); }
                 catch { if (!signal.aborted) status.textContent = "아래 오디오 재생 버튼을 눌러주세요."; }
-                setTimeout(() => { syncing = false; }, 150);
+                setTimeout(() => { syncing = false; }, 250);
             }
         } catch (error) {
             syncing = false;
@@ -145,6 +159,7 @@ export function renderPlayer(container, playlist) {
 
     container.syncPlayback = (syncData) => {
         if (!syncData || !playable.length) return;
+        pendingSync = syncData;
         const targetVideoId = syncData.current_track?.video_id;
         let targetIdx = targetVideoId ? playable.findIndex((s) => s.video_id === targetVideoId) : -1;
         if (targetIdx < 0 && Number.isInteger(syncData.current_track_index)) {
@@ -158,22 +173,11 @@ export function renderPlayer(container, playlist) {
             play(targetSong, syncData);
             return;
         }
-
-        syncing = true;
-        const targetSec = computeSyncedSec(syncData, Date.now());
-        if (Math.abs((audio.currentTime || 0) - targetSec) >= 2.0) {
-            audio.currentTime = targetSec;
+        if (audio.readyState < 1) {
+            audio.addEventListener("loadedmetadata", () => applyToLoadedAudio(pendingSync || syncData), { once: true });
+            return;
         }
-        if (syncData.is_playing && audio.paused) {
-            status.textContent = "호스트와 실시간 동기화 재생 중";
-            audio.play().catch(() => {
-                status.textContent = "자동 재생이 차단되었습니다. 아래 ▶ 재생 버튼을 한 번 눌러주세요.";
-            });
-        } else if (!syncData.is_playing && !audio.paused) {
-            audio.pause();
-            status.textContent = "호스트가 일시정지했습니다.";
-        }
-        setTimeout(() => { syncing = false; }, 150);
+        applyToLoadedAudio(syncData);
     };
 
     prev.addEventListener("click", () => { if (playable.length) play(playable[Math.max(0, index - 1)]); });
@@ -182,7 +186,7 @@ export function renderPlayer(container, playlist) {
     audio.addEventListener("ended", () => { if (index + 1 < playable.length) play(playable[index + 1]); else status.textContent = "플레이리스트 재생이 끝났어요."; });
     audio.addEventListener("error", () => { if (audio.getAttribute("src")) status.textContent = "오디오를 재생하지 못했습니다. 다시 시도하거나 YouTube 링크로 열어주세요."; });
     const observer = new MutationObserver(() => {
-        if (!audio.isConnected) { controller?.abort(); audio.pause(); audio.removeAttribute("src"); audio.load(); observer.disconnect(); }
+        if (!audio.isConnected) { clearTimeout(seekTimer); controller?.abort(); audio.pause(); audio.removeAttribute("src"); audio.load(); observer.disconnect(); }
     });
     container.append(controls, now, audio, status, trackList(playlist.songs, (song) => play(song)), el("p", "muted playback-help", "처음 선택한 곡은 서버에서 MP3로 준비한 후 재생합니다. 준비된 곡은 캐시를 사용합니다."));
     observer.observe(document.body, { childList: true, subtree: true });
