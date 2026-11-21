@@ -99,27 +99,45 @@
                     <button id="playlist-chat-tab" class="chat-room-tab" type="button" role="tab" aria-selected="false" aria-controls="playlist-chat-panel" tabindex="-1">개별 라운지</button>
                 </div>
                 <div id="main-chat-panel" class="chat-room-panel" role="tabpanel" aria-labelledby="main-chat-tab">
-                <div class="chat-heading"><h2 id="chat-heading">라운지 채팅</h2><span id="connection-status" class="connection-status" role="status">연결 대기</span></div>
-                <p class="chat-room-description">이 라운지의 모든 사람들과 이야기를 나눠보세요.</p>
-                <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="라운지 메시지"></div>
-                <section id="ai-result" class="ai-result hidden" aria-labelledby="ai-result-heading" aria-live="polite">
-                    <div class="ai-result-head"><h3 id="ai-result-heading">🎧 AI 추천 <small class="muted">나에게만 보여요</small></h3><button type="button" id="ai-result-close" class="ai-close" aria-label="AI 추천 닫기">✕</button></div>
-                    <ol id="ai-result-list" class="ai-result-list"></ol>
-                    <p id="ai-result-note" class="muted ai-note"></p>
-                    <details class="ai-context"><summary>추천에 참고한 정보</summary><ul id="ai-context-list" class="ai-context-list"></ul></details>
-                    <div class="ai-actions"><button type="button" class="primary" id="ai-save-btn">내 플레이리스트로 저장</button><button type="button" class="secondary" id="ai-again-btn">다시 추천</button></div>
-                    <p id="ai-save-feedback" class="feedback" role="status"></p>
-                </section>
-                <p id="ai-mode-hint" class="ai-mode-hint hidden" role="status">✨ AI 추천 모드 · 비워두고 Enter: 내 플레이리스트·좋아요한 곡과 비슷한 노래 · 분위기를 적고 Enter: AI가 골라줘요 (예: 비 오는 날 듣기 좋은 노래) · Esc로 취소</p>
-                <form id="chat-form" class="chat-composer"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button><button type="button" id="ai-recommend-btn" class="ai-btn" title="AI에게 노래 추천받기. 누르면 입력칸이 AI 요청용으로 바뀌어요." aria-pressed="false" disabled>✨ AI 추천</button></form>
-                <p id="chat-feedback" class="feedback" role="status"></p>
+                    <div class="chat-heading"><h2 id="chat-heading">라운지 채팅</h2><span id="connection-status" class="connection-status" role="status">연결 대기</span></div>
+                    <p class="chat-room-description">이 라운지의 모든 사람들과 이야기를 나눠보세요.</p>
+                    <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="라운지 메시지"></div>
+                    <section id="ai-result" class="ai-result hidden" aria-labelledby="ai-result-heading" aria-live="polite">
+                        <div class="ai-result-head"><h3 id="ai-result-heading">🎧 AI 추천 <small class="muted">나에게만 보여요</small></h3><button type="button" id="ai-result-close" class="ai-close" aria-label="AI 추천 닫기">✕</button></div>
+                        <ol id="ai-result-list" class="ai-result-list"></ol>
+                        <p id="ai-result-note" class="muted ai-note"></p>
+                        <details class="ai-context"><summary>추천에 참고한 정보</summary><ul id="ai-context-list" class="ai-context-list"></ul></details>
+                        <div class="ai-actions"><button type="button" class="primary" id="ai-save-btn">내 플레이리스트로 저장</button><button type="button" class="secondary" id="ai-again-btn">다시 추천</button></div>
+                        <p id="ai-save-feedback" class="feedback" role="status"></p>
+                    </section>
+                    <p id="ai-mode-hint" class="ai-mode-hint hidden" role="status">✨ AI 추천 모드 · 비워두고 Enter: 내 플레이리스트·좋아요한 곡과 비슷한 노래 · 분위기를 적고 Enter: AI가 골라줘요 (예: 비 오는 날 듣기 좋은 노래) · Esc로 취소</p>
+                    <form id="chat-form" class="chat-composer"><input id="chat-input" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="채팅 메시지" disabled><button type="submit" class="send" aria-label="메시지 보내기" disabled>↑</button><button type="button" id="ai-recommend-btn" class="ai-btn" title="AI에게 노래 추천받기. 누르면 입력칸이 AI 요청용으로 바뀌어요." aria-pressed="false" disabled>✨ AI 추천</button></form>
+                    <p id="chat-feedback" class="feedback" role="status"></p>
                 </div>
                 <div id="playlist-chat-panel" class="chat-room-panel" role="tabpanel" aria-labelledby="playlist-chat-tab" hidden>
-                    <div class="chat-heading"><h2>플레이리스트 채팅</h2></div>
-                    <p class="chat-room-description">같은 플레이리스트를 듣는 사람들과 이야기를 나눠보세요.</p>
-                    <div class="chat-playlist-context"><span>NOW LISTENING</span><strong id="playlist-chat-title">플레이리스트를 선택해주세요</strong></div>
-                    <div class="playlist-chat-empty"><span aria-hidden="true">♫</span><p id="playlist-chat-description">플레이리스트를 선택하면<br>개별 라운지를 확인할 수 있어요.</p></div>
-                    <div class="chat-composer"><input type="text" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" aria-label="개별 라운지 메시지"><button type="button" class="send" aria-label="개별 라운지 메시지 보내기">↑</button></div>
+                    <div class="chat-heading">
+                        <h2>플레이리스트 채팅</h2>
+                        <span id="room-connection-status" class="connection-status" role="status">대기 중</span>
+                    </div>
+                    <p class="chat-room-description">같은 플레이리스트를 듣는 사람들과 실시간으로 음악을 동기화하고 대화해보세요.</p>
+                    <div class="chat-playlist-context">
+                        <div>
+                            <span>NOW LISTENING</span>
+                            <strong id="playlist-chat-title">플레이리스트를 선택해주세요</strong>
+                        </div>
+                        <div id="playlist-room-actions"></div>
+                    </div>
+                    <div id="playlist-room-list"></div>
+                    <div id="playlist-chat-empty" class="playlist-chat-empty">
+                        <span aria-hidden="true">♫</span>
+                        <p id="playlist-chat-description">플레이리스트를 선택해 방을 만들거나<br>열려 있는 개별 라운지에 입장해보세요.</p>
+                    </div>
+                    <div id="playlist-chat-messages" class="chat-messages hidden" role="log" aria-live="polite" aria-relevant="additions" aria-label="개별 라운지 메시지"></div>
+                    <form id="playlist-chat-form" class="chat-composer">
+                        <input id="playlist-chat-input" type="text" maxlength="300" placeholder="함께 듣는 사람들에게 한마디…" required aria-label="개별 라운지 메시지" disabled>
+                        <button type="submit" class="send" aria-label="개별 라운지 메시지 보내기" disabled>↑</button>
+                    </form>
+                    <p id="playlist-chat-feedback" class="feedback" role="status"></p>
                 </div>
             </aside>
         </div>
@@ -129,7 +147,7 @@
     <h2>플레이리스트 만들기</h2><p class="muted">내 계정에 저장하고 현재 라운지에도 공유합니다.</p>
     <label for="playlist-title">플레이리스트 이름</label><input id="playlist-title" maxlength="60" required placeholder="예: 밤 산책의 리듬">
     <section class="youtube-import" aria-label="유튜브 곡 정보 가져오기"><label for="create-import-url">유튜브 영상·재생목록에서 곡 정보 가져오기</label><div class="import-controls"><input id="create-import-url" type="url" maxlength="2048" placeholder="https://www.youtube.com/playlist?list=…"><button type="button" class="primary" id="create-import-button">곡 정보 가져오기</button></div><p class="muted">공개 영상·재생목록에서 최대 100곡을 가져옵니다. 저장 후 MP3로 감상하세요.</p><p id="create-import-feedback" class="feedback" role="status" aria-live="polite"></p></section>
-        <label for="playlist-songs">유튜브 링크 (한 줄에 한 곡, 최대 100곡)</label><textarea id="playlist-songs" rows="6" required placeholder="https://www.youtube.com/watch?v=…&#10;곡 이름 | https://youtu.be/…"></textarea>
+    <label for="playlist-songs">유튜브 링크 (한 줄에 한 곡, 최대 100곡)</label><textarea id="playlist-songs" rows="6" required placeholder="https://www.youtube.com/watch?v=…&#10;곡 이름 | https://youtu.be/…"></textarea>
     <p class="muted">곡 이름은 링크 앞에 ‘곡 이름 | 링크’ 형식으로 입력할 수 있어요.</p>
     <p id="create-feedback" class="feedback" role="status"></p>
     <div class="dialog-actions"><button type="button" class="secondary" id="cancel-btn">취소</button><button type="submit" class="primary" id="create-submit">저장하고 공유</button></div>
