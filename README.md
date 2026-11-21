@@ -352,6 +352,20 @@ AI 노래 추천과 플레이리스트 찾기·수집의 자동화 테스트는 
 python -m unittest discover -s tests -v
 ```
 
+`develop`·`main`에 push하거나 PR을 열면 `.github/workflows/`의 GitHub Actions가 다음 검사를 자동으로 실행합니다. Ollama 모델 다운로드처럼 무거운 작업은 포함하지 않았습니다.
+
+| 워크플로 | 파일 | 검사 내용 |
+| --- | --- | --- |
+| 파이썬 자동화 테스트 | `python-tests.yml` | Python 3.11·3.12에서 `unittest` 실행 |
+| 파이썬 문법·린트 검사 | `python-lint.yml` | `compileall`, flake8 오류 수준(E9·F63·F7·F82) |
+| 프론트 JS 문법 검사 | `js-syntax.yml` | `static/**/*.js`에 `node --check` |
+| Docker Compose 설정 검사 | `compose-config.yml` | 기본·GPU 합친 설정 `config --quiet`, 서비스 5개 존재 확인 |
+| 웹 이미지 빌드 검사 | `docker-build-web.yml` | 루트 `Dockerfile` 빌드 후 `import app` 확인 |
+| 미디어 서버 이미지 빌드 검사 | `docker-build-media.yml` | `ytdlp_server/Dockerfile` 빌드 후 flask·yt-dlp·ffmpeg 확인 |
+| 의존성 보안 점검 | `dependency-audit.yml` | `pip-audit`로 알려진 취약점 점검(미디어 서버는 결과만 보고) |
+
+미디어 서버의 고정 버전(`flask==3.0.2`, `gunicorn==21.2.0`, `requests==2.31.0`)에는 현재 알려진 취약점이 있어, 의존성 점검의 미디어 서버 job은 실패해도 전체 결과를 막지 않도록 설정했습니다.
+
 기존 README에서 안내하던 `tests/test_media.py`와 인증·채팅·미디어 통합 테스트는 저장소에서 확인되지 않으므로 실행·통과를 보장하지 않습니다.
 
 실행 후 메인·로그인·마이페이지, 미디어 서버의 `/health`를 확인하고, 실제 YouTube 가져오기·MP3 변환·여러 브라우저의 SSE 채팅은 해당 실행 환경에서 별도로 확인해야 합니다.

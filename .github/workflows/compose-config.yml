@@ -1,0 +1,33 @@
+name: Docker Compose 설정 검사
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    name: Compose 설정 문법 확인
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: 기본 설정 검사
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: GPU 설정을 합친 구성 검사
+        run: docker compose -f docker-compose.yml -f docker-compose.gpu.yml config --quiet
+
+      - name: 서비스 목록 확인
+        run: |
+          services=$(docker compose -f docker-compose.yml config --services)
+          echo "$services"
+          for name in web ytdlp-server db ollama ollama-pull; do
+            echo "$services" | grep -qx "$name" || { echo "서비스 누락: $name"; exit 1; }
+          done

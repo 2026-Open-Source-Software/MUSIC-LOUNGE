@@ -1,0 +1,37 @@
+name: 웹 이미지 빌드 검사
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: 루트 Dockerfile 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Buildx 준비
+        uses: docker/setup-buildx-action@v3
+
+      # 이미지를 올리지 않고 빌드만 확인합니다.
+      - name: 웹(Flask) 이미지 빌드
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: music-lounge-web:ci
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: 이미지 안에서 앱 모듈 불러오기 확인
+        run: docker run --rm music-lounge-web:ci python -c "import app; print('웹 앱 import 성공')"

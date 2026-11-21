@@ -1,0 +1,34 @@
+name: 파이썬 문법·린트 검사
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 문법 컴파일 및 flake8 오류 검사
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: flake8 설치
+        run: pip install flake8
+
+      - name: 전체 파이썬 파일 컴파일
+        run: python -m compileall -q -x '(\.git|instance)' .
+
+      # 문법 오류·정의되지 않은 이름 등 실행을 깨뜨리는 오류만 검사합니다.
+      - name: flake8 오류 수준 검사
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.git,__pycache__,instance
